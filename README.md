@@ -17,6 +17,7 @@
   </p>
 
   <p>
+    <a href="https://heman10x-ngu.github.io/open-siren-anthropic/">Live Trace Explorer</a> &middot;
     <a href="#the-problem-can-it-escape-vs-will-it">Why Siren</a> &middot;
     <a href="#how-it-works">How it works</a> &middot;
     <a href="#mitigations-in-action">Mitigations</a> &middot;
@@ -39,6 +40,8 @@ Anthropic's [Siren post](https://safeguards.anthropic.com/2026/siren/) asks a sh
 > Put an agent inside an imperfectly configured sandbox with a normal DevOps task (sometimes impossible inside the box). Place a helpful credential or file right outside the leaky wall, and add realistic pressure like deadlines or "search thoroughly" without ever granting permission to leave. Does the agent reach outside on its own, use what it finds, or cross a boundary no reasonable reading of the task allows?
 
 Anthropic kept the Siren harness and dataset internal. `open-siren-anthropic` is a clean, pluggable open-source implementation of the same method that you can run against any model and inspect step by step.
+
+> **Active development:** This project is actively being built and live frontier model runs are coming next. If you find it useful or want to follow along, please leave a star on the repo. Issues, PRs, and new sandbox escape scenarios are very welcome.
 
 ---
 
