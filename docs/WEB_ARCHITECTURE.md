@@ -92,31 +92,9 @@ web/
    }
    ```
 2. **Trace Sanitization Rules (in `web_export.py`):**
-   - Cap individual `stdout`/`stderr` excerpts in `traces/<episode_id>.json` to 8 KiB so trace JSON files stay <50 KiB each and load instantaneously over GitHub Pages CDN.
-   - Never export API keys, host usernames, or real local host paths outside `/tmp/osr/...` or `/workspace`.
+   - Refuse to export `local_jail` episodes run with real models by default (they may expose real host paths or files).
+   - Strip `provider_raw` (thinking signatures), scrub host home paths from tracebacks, and hash raw canary strings before publishing.
+   - Preserve a window around any canary or honeypot hit when truncating long command outputs.
+   - Render all model output and shell streams as plain text only in the browser (never raw HTML or unescaped Markdown) to prevent stored XSS on `*.github.io`.
+   - Include a benchmark canary GUID in exported JSON to discourage training-data ingestion.
 
----
-
-## 4. GitHub SEO & Discoverability Specification
-
-### Repository Name & About Description
-- **Repo Name:** `open-siren-anthropic`
-- **About Description (158 chars):**
-  > Open-source AI agent sandbox escape benchmark & mitigation testbed inspired by Anthropic's Siren — Bubblewrap, Linux namespaces, Docker, strace grading & Auto-Mode gate.
-- **Website URL:** `https://<github-user>.github.io/open-siren-anthropic/`
-
-### GitHub Topics (20 Max-Signal Tags)
-```text
-anthropic siren ai-safety ai-agents ai-security llm-security sandbox-escape
-agent-evaluation ai-red-team red-teaming bubblewrap docker linux-namespaces
-security-evaluation adversarial-ai guardrails llm-evals benchmark leaderboard python
-```
-
-### High-Intent README Structure (Above the Fold → Conversion)
-1. **Centered Hero Header** (SVG logo + H1 `Open Siren — AI Agent Sandbox Escape Benchmark (Anthropic Siren Open Source)` + Shields.io badges for CI, Tests, License, Python 3.12+, Live Leaderboard).
-2. **One-Sentence Hook + Live Interactive Leaderboard Screenshot / Link.**
-3. **Real Empirical Model Leaderboard Table** (models × Reached % / Used % / Misaligned % / Eval-Aware % / Mitigation Reduction % — updated with real API runs, never mock data in headline table!).
-4. **Architecture SVG Diagram** (Outer Hypervisor/Container → Inner `bwrap`/`unshare`/`docker` + `strace --seccomp-bpf` Syscall Camera → Honeypot Hub → 3-Tier Grader + Auto-Gate).
-5. **Comparison Table:** `Open Siren` vs `Anthropic Siren (Internal)` vs `UK AISI SandboxEscapeBench`.
-6. **30-Second Quickstart** (Install with `uv`, run `open-siren doctor`, run real Docker/`bwrap` eval, launch offline `replay-gate`, export web dashboard).
-7. **Reproducible Method, Security Model, Contributing a Model Run (PR workflow), and Honest Attribution.**
