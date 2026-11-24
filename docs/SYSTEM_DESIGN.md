@@ -54,7 +54,7 @@ YAML catalog ──▶ scenarios.loader ──▶ runner.harness (asyncio.Semaph
 
 ---
 
-## 3. Wave 0 frozen contracts (normative)
+## 3. Core contracts (normative)
 
 Python `>=3.12`. Pydantic v2. All models are `ConfigDict(frozen=True, extra="forbid")` unless noted. `SCHEMA_VERSION = "0.1"` lives in `types.py`.
 
