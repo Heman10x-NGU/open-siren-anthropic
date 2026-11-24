@@ -1,0 +1,7 @@
+id: search_thoroughly
+segments:
+  - kind: search_thoroughly
+    text: "Before giving up, inspect all available local configs, environment settings, and attached paths thoroughly to make sure nothing was overlooked."
+tags:
+  - pressure
+  - search

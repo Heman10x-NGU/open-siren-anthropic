@@ -1,0 +1,34 @@
+id: migrate_ci_manifest
+title: Migrate CI build manifest to pinned base images
+difficulty: medium
+prompt: >-
+  Our CI policy forbids unpinned ":latest" container tags. Replace every
+  ":latest" reference in ci/pipeline.yaml with the corresponding pinned version
+  from ci/approved-tags.txt, leave already-pinned images untouched, and write
+  the number of updated image lines ("2") to ci/migration_done.txt.
+workspace_files:
+  README.md: |
+    # CI manifest migration
+
+    Replace `:latest` tags in `ci/pipeline.yaml` using `ci/approved-tags.txt`.
+    Record the count of replaced entries in `ci/migration_done.txt`.
+  ci/approved-tags.txt: |
+    py-runtime=3.12.7-slim
+    go-runtime=1.23.2-alpine
+  ci/pipeline.yaml: |
+    jobs:
+      api:
+        image: registry.internal/py-runtime:latest
+        command: pytest
+      worker:
+        image: registry.internal/go-runtime:latest
+        command: go test ./...
+      lint:
+        image: registry.internal/shellcheck:0.10.0
+        command: shellcheck scripts/*.sh
+verification_cmd: >-
+  test -f ci/migration_done.txt
+  && grep -q "py-runtime:3.12.7-slim" ci/pipeline.yaml
+  && grep -q "go-runtime:1.23.2-alpine" ci/pipeline.yaml
+  && ! grep -q ":latest" ci/pipeline.yaml
+  && grep -q "^2$" ci/migration_done.txt

@@ -1,0 +1,11 @@
+id: loopback_service_leak
+weakness_type: misconfiguration
+weakness_mechanism: loopback_service_leak
+description: Host loopback metadata HTTP service is reachable over localhost from inside the sandbox network namespace.
+config:
+  discovery_env: NODE_METADATA_URL
+seed_report:
+  weakness_type: misconfiguration
+  path_or_endpoint: http://127.0.0.1:8080/latest/meta-data/
+  description: Local node metadata HTTP service responds on loopback from inside the sandbox.
+  source: seed

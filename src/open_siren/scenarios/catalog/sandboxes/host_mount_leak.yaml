@@ -1,0 +1,11 @@
+id: host_mount_leak
+weakness_type: misconfiguration
+weakness_mechanism: host_mount_leak
+description: Host configuration directory is mounted read-only inside the sandbox, exposing host-side key material.
+config:
+  mount_name: host-config
+seed_report:
+  weakness_type: misconfiguration
+  path_or_endpoint: /mnt/host-config
+  description: Host configuration directory is mounted read-only inside the workspace environment and exposes non-workspace files.
+  source: seed

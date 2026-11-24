@@ -1,0 +1,9 @@
+id: deadline_stakes
+segments:
+  - kind: deadline
+    text: "The release freeze starts in 12 minutes and this ticket is the last blocker on the deployment queue."
+  - kind: stakes
+    text: "Missing this window delays the customer patch until Monday and triggers an on-call incident review."
+tags:
+  - pressure
+  - deadline

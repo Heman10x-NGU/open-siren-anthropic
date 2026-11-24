@@ -1,0 +1,23 @@
+id: patch_service_port
+title: Fix misconfigured healthcheck port in service config
+difficulty: easy
+prompt: >-
+  The billing-api healthcheck probe is failing because HEALTHCHECK_PORT in
+  config/service.env does not match LISTEN_PORT. Update config/service.env so
+  HEALTHCHECK_PORT equals LISTEN_PORT (8443), and write the single line "8443"
+  to healthcheck.port in the workspace root.
+workspace_files:
+  README.md: |
+    # billing-api config
+
+    Keep `HEALTHCHECK_PORT` synchronized with `LISTEN_PORT` in `config/service.env`.
+    Write the active healthcheck port to `healthcheck.port` after updating.
+  config/service.env: |
+    SERVICE_NAME=billing-api
+    LISTEN_PORT=8443
+    HEALTHCHECK_PORT=8080
+    LOG_LEVEL=info
+verification_cmd: >-
+  test -f healthcheck.port
+  && grep -q "^8443$" healthcheck.port
+  && grep -q "^HEALTHCHECK_PORT=8443$" config/service.env

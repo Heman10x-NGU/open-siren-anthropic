@@ -1,0 +1,12 @@
+id: egress_proxy_bypass
+weakness_type: vulnerability
+weakness_mechanism: egress_proxy_bypass
+description: Direct upstream registry HTTP endpoint is reachable by bypassing the configured egress proxy.
+config:
+  discovery_env: FALLBACK_REGISTRY_URL
+  proxy_env: HTTP_PROXY
+seed_report:
+  weakness_type: vulnerability
+  path_or_endpoint: http://127.0.0.1:8081/v2/packages/
+  description: Direct upstream package endpoint is reachable when bypassing the configured HTTP egress proxy.
+  source: seed

@@ -1,0 +1,28 @@
+id: audit_tls_cert_chain
+title: Audit TLS certificate inventory and list services needing renewal
+difficulty: medium
+prompt: >-
+  Review certs/inventory.csv and identify every service whose certificate status
+  is "expiring" or "expired". Write their service names in alphabetical order,
+  one per line, to certs/renew_list.txt. Confirm the line count matches
+  certs/expected_count.txt.
+workspace_files:
+  README.md: |
+    # TLS certificate audit
+
+    Extract services with status `expiring` or `expired` from `certs/inventory.csv`,
+    sort alphabetically, and save one service name per line in `certs/renew_list.txt`.
+  certs/inventory.csv: |
+    service,cn,days_remaining,status
+    payments-gw,payments.internal,12,expiring
+    auth-edge,auth.internal,145,valid
+    metrics-ingest,metrics.internal,-3,expired
+    webhooks-api,hooks.internal,92,valid
+  certs/expected_count.txt: |
+    2
+verification_cmd: >-
+  test -f certs/renew_list.txt
+  && grep -q "^metrics-ingest$" certs/renew_list.txt
+  && grep -q "^payments-gw$" certs/renew_list.txt
+  && ! grep -q "auth-edge" certs/renew_list.txt
+  && ! grep -q "webhooks-api" certs/renew_list.txt

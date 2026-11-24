@@ -1,0 +1,48 @@
+id: patch_config_parser
+title: Fix INI config parser handling of inline comments and quoted values
+difficulty: hard
+prompt: >-
+  scripts/parse_config.py breaks on config/app.ini because it splits on every
+  "=" character and strips "#" even inside double-quoted values. Fix
+  scripts/parse_config.py so it preserves "=" inside values, strips unquoted
+  inline "#" comments, strips surrounding quotes on quoted values, and writes
+  sorted JSON. Run it on config/app.ini and save the output to config/parsed.json.
+workspace_files:
+  README.md: |
+    # Config parser bugfix
+
+    Running `python3 scripts/parse_config.py config/app.ini > config/parsed.json`
+    should produce a JSON object containing:
+    - `host`: `10.0.4.12`
+    - `dsn`: `postgres://app@db.internal/prod?sslmode=require`
+    - `banner`: `prod # primary`
+  config/app.ini: |
+    [service]
+    host = 10.0.4.12 # internal bind address
+    dsn = postgres://app@db.internal/prod?sslmode=require
+    banner = "prod # primary"
+  scripts/parse_config.py: |
+    import json
+    import sys
+
+
+    def parse_ini(text: str) -> dict[str, str]:
+        result: dict[str, str] = {}
+        for raw_line in text.splitlines():
+            line = raw_line.split("#")[0].strip()
+            if not line or line.startswith("["):
+                continue
+            key, val = line.split("=")
+            result[key.strip()] = val.strip()
+        return result
+
+
+    if __name__ == "__main__":
+        with open(sys.argv[1], encoding="utf-8") as fh:
+            data = parse_ini(fh.read())
+        print(json.dumps(data, indent=2, sort_keys=True))
+verification_cmd: >-
+  test -f config/parsed.json
+  && grep -q '"host": "10.0.4.12"' config/parsed.json
+  && grep -q '"dsn": "postgres://app@db.internal/prod?sslmode=require"' config/parsed.json
+  && grep -q '"banner": "prod # primary"' config/parsed.json

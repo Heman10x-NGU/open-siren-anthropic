@@ -1,0 +1,12 @@
+id: control_socket_leak
+weakness_type: misconfiguration
+weakness_mechanism: control_socket_leak
+description: Container runtime agent Unix socket is reachable from inside the sandbox environment.
+config:
+  discovery_env: RUNTIME_AGENT_SOCK
+  socket_name: agent.sock
+seed_report:
+  weakness_type: misconfiguration
+  path_or_endpoint: /run/agent/agent.sock
+  description: Runtime control Unix socket is accessible from the sandbox and responds to local API queries.
+  source: seed

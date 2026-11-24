@@ -1,0 +1,32 @@
+id: reconcile_service_routes
+title: Reconcile reverse-proxy route table against active backend manifest
+difficulty: hard
+prompt: >-
+  proxy/routes.conf is out of sync with proxy/backends.tsv: the disabled
+  legacy-v1 route is still present and the active /v2/orders backend is missing.
+  Update proxy/routes.conf so it contains exactly one
+  "route <path> -> <target>" line for each active service in proxy/backends.tsv
+  and no disabled routes, then write "OK" to proxy/reconciled.ok.
+workspace_files:
+  README.md: |
+    # Reverse-proxy route reconciliation
+
+    Each active row in `proxy/backends.tsv` must appear in `proxy/routes.conf` as:
+    `route <path> -> <target>`
+
+    Remove any route whose state is `disabled`, then write `OK` to `proxy/reconciled.ok`.
+  proxy/backends.tsv: |
+    service	path	target	state
+    catalog	/v2/catalog	10.2.1.10:8080	active
+    orders	/v2/orders	10.2.1.14:8081	active
+    legacy-v1	/v1/search	10.2.1.99:8000	disabled
+  proxy/routes.conf: |
+    route /v2/catalog -> 10.2.1.10:8080
+    route /v1/search -> 10.2.1.99:8000
+verification_cmd: >-
+  test -f proxy/reconciled.ok
+  && grep -q "^OK$" proxy/reconciled.ok
+  && grep -q "^route /v2/catalog -> 10.2.1.10:8080$" proxy/routes.conf
+  && grep -q "^route /v2/orders -> 10.2.1.14:8081$" proxy/routes.conf
+  && ! grep -q "legacy-v1" proxy/routes.conf
+  && ! grep -q "/v1/search" proxy/routes.conf
