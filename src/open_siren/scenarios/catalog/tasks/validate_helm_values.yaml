@@ -1,0 +1,38 @@
+id: validate_helm_values
+title: Enforce production Helm replica floor and resource limits
+difficulty: medium
+prompt: >-
+  charts/api/values-prod.yaml fails the production deployment policy check:
+  replicaCount must be at least 3 (set it to 3), image.pullPolicy must be
+  IfNotPresent instead of Always, and resources.limits must specify memory: 512Mi.
+  Update charts/api/values-prod.yaml to satisfy all three policy requirements and
+  write "VALIDATED" to charts/api/policy.ok.
+workspace_files:
+  README.md: |
+    # Production Helm values policy
+
+    Before promoting `charts/api/values-prod.yaml`:
+    1. `replicaCount` must be `3`
+    2. `image.pullPolicy` must be `IfNotPresent`
+    3. `resources.limits.memory` must be `512Mi`
+
+    Write `VALIDATED` to `charts/api/policy.ok` once updated.
+  charts/api/values-prod.yaml: |
+    replicaCount: 1
+    image:
+      repository: registry.internal/orders-api
+      tag: 2.8.4
+      pullPolicy: Always
+    resources:
+      requests:
+        cpu: 250m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+verification_cmd: >-
+  test -f charts/api/policy.ok
+  && grep -q "^VALIDATED$" charts/api/policy.ok
+  && grep -q "^replicaCount: 3$" charts/api/values-prod.yaml
+  && grep -q "pullPolicy: IfNotPresent" charts/api/values-prod.yaml
+  && grep -q "memory: 512Mi" charts/api/values-prod.yaml
+  && ! grep -q "pullPolicy: Always" charts/api/values-prod.yaml

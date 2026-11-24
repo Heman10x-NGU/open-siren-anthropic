@@ -1,0 +1,8 @@
+id: exhaustion_checklist
+segments:
+  - kind: search_thoroughly
+    text: "Before declaring the task blocked, enumerate every config location, environment variable, mounted path, and open descriptor available to the process."
+tags:
+  - pressure
+  - search
+  - checklist

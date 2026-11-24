@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
+import platform
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -22,10 +24,23 @@ from open_siren.registry import (
     PROVIDER_REGISTRY,
     SANDBOX_REGISTRY,
 )
-from open_siren.runner import EvalHarness, render_html, render_json, render_markdown
-from open_siren.sandboxes import DockerSandboxBackend, LocalJailBackend, reap
+from open_siren.runner import (
+    EvalHarness,
+    export_web_bundle,
+    render_html,
+    render_json,
+    render_markdown,
+)
+from open_siren.sandboxes import (
+    BwrapSandboxBackend,
+    DockerSandboxBackend,
+    LocalJailBackend,
+    UnshareSandboxBackend,
+    reap,
+)
 from open_siren.scenarios import (
     ScenarioValidationError,
+    TempterSearchPipeline,
     list_builtin_suites,
     load_catalog,
     load_suite,
@@ -39,7 +54,7 @@ app = typer.Typer(
 )
 
 _VALID_REPORT_FORMATS: frozenset[str] = frozenset({"md", "html", "json"})
-_DEFAULT_DOCKER_IMAGE = "open-siren-runner:0.1"
+_DEFAULT_DOCKER_IMAGE = "open-siren-runner:0.2"
 
 
 class _CliError(Exception):
@@ -130,6 +145,15 @@ def _write_reports(
     return written, md_text
 
 
+def _normalize_arch(arch: str) -> str:
+    cleaned = arch.strip().lower()
+    if cleaned in ("arm64", "aarch64"):
+        return "arm64"
+    if cleaned in ("amd64", "x86_64"):
+        return "x86_64"
+    return cleaned
+
+
 async def _check_docker_image(image: str = _DEFAULT_DOCKER_IMAGE) -> tuple[bool, str]:
     try:
         proc = await asyncio.create_subprocess_exec(
@@ -155,6 +179,52 @@ async def _check_docker_image(image: str = _DEFAULT_DOCKER_IMAGE) -> tuple[bool,
         return True, f"Image {image!r} present"
     detail = stderr_b.decode("utf-8", errors="replace").strip()
     return False, detail or f"Image {image!r} not built yet (first docker run builds it)"
+
+
+async def _check_container_arch(
+    *,
+    image: str = _DEFAULT_DOCKER_IMAGE,
+    image_present: bool = True,
+) -> tuple[bool, str]:
+    """Verify container `uname -m` matches host arch to surface Rosetta/QEMU ptrace traps."""
+    host_arch = platform.machine() or "unknown"
+    cmd = (
+        ["docker", "run", "--rm", "--entrypoint", "uname", image, "-m"]
+        if image_present
+        else ["docker", "info", "--format", "{{.Architecture}}"]
+    )
+    source_label = "Container uname -m" if image_present else "Docker daemon arch"
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+    except FileNotFoundError:
+        return False, "docker binary not found on PATH"
+
+    try:
+        stdout_b, stderr_b = await asyncio.wait_for(proc.communicate(), timeout=10.0)
+    except TimeoutError:
+        with contextlib.suppress(ProcessLookupError):
+            proc.kill()
+        await proc.wait()
+        return False, f"{source_label} check timed out"
+
+    if proc.returncode != 0:
+        detail = stderr_b.decode("utf-8", errors="replace").strip() or f"exit {proc.returncode}"
+        return False, f"Failed to probe {source_label}: {detail}"
+
+    container_arch = stdout_b.decode("utf-8", errors="replace").strip() or "unknown"
+    if _normalize_arch(container_arch) == _normalize_arch(host_arch):
+        suffix = "" if image_present else " (runner image not built yet)"
+        return True, f"{source_label} {container_arch!r} matches host {host_arch!r}{suffix}"
+    return (
+        False,
+        f"{source_label} {container_arch!r} != host {host_arch!r} "
+        "(emulation/Rosetta may break strace/ptrace in bwrap/unshare)",
+    )
 
 
 @app.command("list")
@@ -310,7 +380,7 @@ def run_cmd(
     ] = None,
     backend: Annotated[
         str,
-        typer.Option("--backend", help="Sandbox backend: local_jail or docker."),
+        typer.Option("--backend", help="Sandbox backend: local_jail, docker, bwrap, or unshare."),
     ] = "docker",
     suite: Annotated[
         str,
@@ -604,6 +674,218 @@ def report_cmd(
         raise typer.Exit(code=1) from None
 
 
+@app.command("export-web")
+def export_web_cmd(
+    results: Annotated[
+        list[str],
+        typer.Option(
+            "--results",
+            help=(
+                "Path(s) to results directory or episodes.jsonl (repeatable or comma-separated)."
+            ),
+        ),
+    ],
+    out: Annotated[
+        Path,
+        typer.Option("--out", help="Output directory for sanitized web bundle JSON files."),
+    ] = Path("web/public/data"),
+    demo: Annotated[
+        bool,
+        typer.Option(
+            "--demo/--no-demo",
+            help="Mark exported manifest.json as demo data (sets is_demo).",
+        ),
+    ] = False,
+    include_unisolated: Annotated[
+        bool,
+        typer.Option(
+            "--include-unisolated",
+            help="Allow exporting non-mock episodes run on unisolated local_jail.",
+        ),
+    ] = False,
+) -> None:
+    """Export sanitized JSON data files for the Open Siren interactive web dashboard."""
+    try:
+        result_paths = [Path(item) for raw in results for item in _parse_csv(raw)]
+        if not result_paths:
+            raise _CliError("--results must specify at least one results directory or JSONL file.")
+
+        try:
+            exported_dir = asyncio.run(
+                export_web_bundle(
+                    result_paths,
+                    out,
+                    is_demo=demo,
+                    include_unisolated=include_unisolated,
+                )
+            )
+        except (FileNotFoundError, ValueError, OSError) as exc:
+            raise _CliError(str(exc)) from exc
+
+        manifest_data = json.loads((exported_dir / "manifest.json").read_text(encoding="utf-8"))
+        console = _stdout_console()
+        table = Table(title="Open Siren Web Bundle Exported")
+        table.add_column("Field", style="bold cyan")
+        table.add_column("Value")
+        table.add_row("Output directory", str(exported_dir))
+        table.add_row("Total episodes", str(manifest_data.get("total_episodes", 0)))
+        table.add_row("Models", ", ".join(manifest_data.get("models", [])) or "—")
+        table.add_row("Backends", ", ".join(manifest_data.get("backends", [])) or "—")
+        table.add_row("Mitigation sets", ", ".join(manifest_data.get("mitigation_sets", [])) or "—")
+        table.add_row("is_demo", str(manifest_data.get("is_demo", False)))
+        table.add_row("Benchmark canary", str(manifest_data.get("benchmark_canary", "")))
+        console.print(table)
+
+    except _CliError as exc:
+        _print_error(str(exc))
+        raise typer.Exit(code=1) from None
+
+
+@app.command("evolve-tempters")
+def evolve_tempters_cmd(
+    provider: Annotated[
+        str,
+        typer.Option("--provider", help="Generator provider name (e.g. openai_compat, anthropic)."),
+    ],
+    model: Annotated[
+        str,
+        typer.Option("--model", help="Generator model ID."),
+    ],
+    base_url: Annotated[
+        str | None,
+        typer.Option("--base-url", help="Custom API base URL for provider."),
+    ] = None,
+    api_key_env: Annotated[
+        str | None,
+        typer.Option("--api-key-env", help="Environment variable holding provider API key."),
+    ] = None,
+    judge_provider: Annotated[
+        str | None,
+        typer.Option("--judge-provider", help="Optional AI judge provider name."),
+    ] = None,
+    judge_model: Annotated[
+        str | None,
+        typer.Option("--judge-model", help="Optional AI judge model ID."),
+    ] = None,
+    rounds: Annotated[
+        int,
+        typer.Option("--rounds", min=1, help="Number of evolutionary generation rounds."),
+    ] = 2,
+    candidates: Annotated[
+        int,
+        typer.Option("--candidates", min=1, help="Candidate tempters requested per round."),
+    ] = 6,
+    top_k: Annotated[
+        int,
+        typer.Option("--top-k", min=1, help="Number of top winning tempters to keep/export."),
+    ] = 5,
+    dedup_threshold: Annotated[
+        float,
+        typer.Option(
+            "--dedup-threshold",
+            min=0.0,
+            max=1.0,
+            help="Word 3-gram Jaccard similarity threshold for deduplication.",
+        ),
+    ] = 0.65,
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", help="Optional output directory to export winning tempter YAMLs."),
+    ] = None,
+) -> None:
+    """Run automated multi-round tempter search seeded from the built-in catalog."""
+    try:
+        if bool(judge_provider) != bool(judge_model):
+            raise _CliError("Both --judge-provider and --judge-model must be provided together.")
+
+        try:
+            catalog = load_catalog()
+        except ScenarioValidationError as exc:
+            raise _CliError(str(exc)) from exc
+
+        seed_tempters = list(catalog.tempters.values())
+
+        async def _run_evolve() -> Any:
+            gen_prov: ModelProvider | None = None
+            judge_prov: ModelProvider | None = None
+            try:
+                gen_prov = _build_provider(
+                    provider,
+                    base_url=base_url,
+                    api_key_env=api_key_env,
+                )
+                if judge_provider is not None and judge_model is not None:
+                    same_provider = judge_provider == provider and provider != "mock"
+                    judge_prov = _build_provider(
+                        judge_provider,
+                        base_url=base_url if same_provider else None,
+                        api_key_env=api_key_env if same_provider else None,
+                    )
+                pipeline = TempterSearchPipeline(
+                    generator_provider=gen_prov,
+                    generator_model=model,
+                    judge_provider=judge_prov,
+                    judge_model=judge_model,
+                    dedup_threshold=dedup_threshold,
+                )
+                return await pipeline.evolve(
+                    seed_tempters=seed_tempters,
+                    rounds=rounds,
+                    candidates_per_round=candidates,
+                    top_k=top_k,
+                    export_dir=out,
+                )
+            finally:
+                if gen_prov is not None:
+                    await gen_prov.aclose()
+                if judge_prov is not None:
+                    await judge_prov.aclose()
+
+        try:
+            report = asyncio.run(_run_evolve())
+        except (ValueError, OSError) as exc:
+            raise _CliError(str(exc)) from exc
+
+        console = _stdout_console()
+        stats_table = Table(title="Tempter Evolution Summary")
+        stats_table.add_column("Metric", style="bold cyan")
+        stats_table.add_column("Value", justify="right")
+        stats_table.add_row("Seed tempters", str(len(seed_tempters)))
+        stats_table.add_row("Generated", str(report.generated))
+        stats_table.add_row("Filtered (rules)", str(report.filtered_rules))
+        stats_table.add_row("Filtered (judge)", str(report.filtered_judge))
+        stats_table.add_row("Deduplicated", str(report.deduplicated))
+        stats_table.add_row("Kept winners", str(len(report.kept)))
+        if report.exported_path is not None:
+            stats_table.add_row("Exported YAML dir", str(report.exported_path / "tempters"))
+        console.print(stats_table)
+
+        if report.kept:
+            winners_table = Table(title=f"Winning Tempters ({len(report.kept)})")
+            winners_table.add_column("ID", style="cyan")
+            winners_table.add_column("Source")
+            winners_table.add_column("Segments", justify="right")
+            winners_table.add_column("Tags")
+            winners_table.add_column("Judge")
+            winners_table.add_column("Preview", overflow="fold")
+            for cand in report.kept:
+                rendered = cand.spec.render()
+                preview = rendered if len(rendered) <= 100 else rendered[:97] + "..."
+                winners_table.add_row(
+                    cand.spec.id,
+                    cand.source,
+                    str(len(cand.spec.segments)),
+                    ", ".join(cand.spec.tags) or "—",
+                    cand.judge_reason,
+                    preview,
+                )
+            console.print(winners_table)
+
+    except _CliError as exc:
+        _print_error(str(exc))
+        raise typer.Exit(code=1) from None
+
+
 @app.command("doctor")
 def doctor_cmd(
     cleanup: Annotated[
@@ -621,20 +903,41 @@ def doctor_cmd(
         ),
     ] = False,
 ) -> None:
-    """Check Python version, sandbox backends, Docker runner image, and leftover resources."""
+    """Check Python version, sandbox backends, Docker runner image, arch, and leftover resources."""
 
-    async def _run_checks() -> tuple[tuple[bool, str], tuple[bool, str], tuple[bool, str] | None]:
+    async def _run_checks() -> tuple[
+        tuple[bool, str],
+        tuple[bool, str],
+        tuple[bool, str],
+        tuple[bool, str],
+        tuple[bool, str] | None,
+        tuple[bool, str] | None,
+    ]:
         local_ok = await LocalJailBackend().check_available()
         docker_ok = await DockerSandboxBackend(image=_DEFAULT_DOCKER_IMAGE).check_available()
+        bwrap_ok = await BwrapSandboxBackend(image=_DEFAULT_DOCKER_IMAGE).check_available()
+        unshare_ok = await UnshareSandboxBackend(image=_DEFAULT_DOCKER_IMAGE).check_available()
         image_ok: tuple[bool, str] | None = None
+        arch_ok: tuple[bool, str] | None = None
         if docker_ok[0]:
             image_ok = await _check_docker_image(_DEFAULT_DOCKER_IMAGE)
-        return local_ok, docker_ok, image_ok
+            arch_ok = await _check_container_arch(
+                image=_DEFAULT_DOCKER_IMAGE,
+                image_present=image_ok[0],
+            )
+        return local_ok, docker_ok, bwrap_ok, unshare_ok, image_ok, arch_ok
 
     py_ok = sys.version_info >= (3, 12)
     py_ver = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
 
-    local_status, docker_status, image_status = asyncio.run(_run_checks())
+    (
+        local_status,
+        docker_status,
+        bwrap_status,
+        unshare_status,
+        image_status,
+        arch_status,
+    ) = asyncio.run(_run_checks())
     effective_dry_run = (not cleanup) or dry_run
     leftovers = reap(dry_run=effective_dry_run)
 
@@ -655,11 +958,25 @@ def doctor_cmd(
         local_status[1],
     )
     table.add_row(
-        "Docker daemon",
+        "Docker daemon (docker)",
         "[green]OK[/green]" if docker_status[0] else "[yellow]WARN[/yellow]",
         docker_status[1]
         if docker_status[0]
         else f"{docker_status[1]} (optional; required for --backend docker)",
+    )
+    table.add_row(
+        "bwrap backend",
+        "[green]OK[/green]" if bwrap_status[0] else "[yellow]WARN[/yellow]",
+        bwrap_status[1]
+        if bwrap_status[0]
+        else f"{bwrap_status[1]} (optional; required for --backend bwrap)",
+    )
+    table.add_row(
+        "unshare backend",
+        "[green]OK[/green]" if unshare_status[0] else "[yellow]WARN[/yellow]",
+        unshare_status[1]
+        if unshare_status[0]
+        else f"{unshare_status[1]} (optional; required for --backend unshare)",
     )
     if image_status is not None:
         table.add_row(
@@ -670,6 +987,18 @@ def doctor_cmd(
     else:
         table.add_row(
             f"Runner image ({_DEFAULT_DOCKER_IMAGE})",
+            "[dim]SKIP[/dim]",
+            "Docker daemon unavailable",
+        )
+    if arch_status is not None:
+        table.add_row(
+            "Container arch (uname -m)",
+            "[green]OK[/green]" if arch_status[0] else "[yellow]WARN[/yellow]",
+            arch_status[1],
+        )
+    else:
+        table.add_row(
+            "Container arch (uname -m)",
             "[dim]SKIP[/dim]",
             "Docker daemon unavailable",
         )

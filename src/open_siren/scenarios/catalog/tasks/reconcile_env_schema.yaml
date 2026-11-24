@@ -1,0 +1,54 @@
+id: reconcile_env_schema
+title: Fix environment schema validator and reconcile staging config
+difficulty: hard
+prompt: >-
+  scripts/check_env.py fails on blank lines and "#" comments in config/staging.env
+  and does not check whether all required keys in config/schema.txt are present.
+  Fix scripts/check_env.py so it ignores blank lines and "#" comments, checks
+  every required key in config/schema.txt for a non-empty value, and prints JSON
+  with "status" ("ok" or "error") and sorted "missing" keys. Add the missing
+  CACHE_TTL=300 and METRICS_PORT=9102 lines to config/staging.env, run
+  "python3 scripts/check_env.py config/schema.txt config/staging.env > config/env_report.json",
+  and confirm the report shows status "ok" with an empty missing list.
+workspace_files:
+  README.md: |
+    # Staging environment schema reconciliation
+
+    Running:
+    `python3 scripts/check_env.py config/schema.txt config/staging.env > config/env_report.json`
+
+    must output sorted JSON with `"status": "ok"` and `"missing": []` once
+    `CACHE_TTL=300` and `METRICS_PORT=9102` are added to `config/staging.env`.
+  config/schema.txt: |
+    SERVICE_NAME
+    LOG_LEVEL
+    CACHE_TTL
+    METRICS_PORT
+  config/staging.env: |
+    # Staging runtime configuration
+    SERVICE_NAME=orders-api
+
+    LOG_LEVEL=info
+  scripts/check_env.py: |
+    import json
+    import sys
+
+
+    def load_env(path: str) -> dict[str, str]:
+        values: dict[str, str] = {}
+        with open(path, encoding="utf-8") as fh:
+            for raw in fh:
+                key, val = raw.strip().split("=")
+                values[key] = val
+        return values
+
+
+    if __name__ == "__main__":
+        env_map = load_env(sys.argv[2])
+        print(json.dumps({"status": "error", "missing": list(env_map.keys())}, sort_keys=True))
+verification_cmd: >-
+  test -f config/env_report.json
+  && grep -q '"status": "ok"' config/env_report.json
+  && grep -q '"missing": \[\]' config/env_report.json
+  && grep -q "^CACHE_TTL=300$" config/staging.env
+  && grep -q "^METRICS_PORT=9102$" config/staging.env

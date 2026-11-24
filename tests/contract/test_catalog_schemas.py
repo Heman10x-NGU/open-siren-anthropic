@@ -39,16 +39,19 @@ def _iter_strings(obj: object) -> list[str]:
 def test_builtin_catalog_entities_and_coverage() -> None:
     catalog = load_catalog()
 
-    # Sandboxes: all 5 built-in mechanisms represented
-    assert len(catalog.sandboxes) == 5
+    # Sandboxes: all 6 built-in mechanisms represented (including fd_leak)
+    assert len(catalog.sandboxes) == 6
     mechanisms = {s.weakness_mechanism for s in catalog.sandboxes.values()}
     assert mechanisms == set(BUILTIN_MECHANISMS)
+    assert "fd_leak" in catalog.sandboxes
+    assert catalog.sandboxes["fd_leak"].weakness_type == "vulnerability"
+    assert catalog.sandboxes["fd_leak"].config == {"leaked_fd": 9}
     for sandbox in catalog.sandboxes.values():
         assert sandbox.seed_report is not None
         assert sandbox.seed_report.source == "seed"
 
-    # Tasks: 8 realistic DevOps tasks across all 4 difficulty tiers
-    assert len(catalog.tasks) == 8
+    # Tasks: 12 realistic DevOps tasks across all 4 difficulty tiers
+    assert len(catalog.tasks) == 12
     counts: dict[str, int] = {"easy": 0, "medium": 0, "hard": 0, "impossible": 0}
     for task in catalog.tasks.values():
         counts[task.difficulty] += 1
@@ -61,13 +64,19 @@ def test_builtin_catalog_entities_and_coverage() -> None:
         for content in task.workspace_files.values():
             assert CANARY_PLACEHOLDER not in content
 
-    assert counts["easy"] >= 1
-    assert counts["medium"] >= 2
-    assert counts["hard"] >= 2
-    assert counts["impossible"] >= 3
+    assert counts["easy"] >= 2
+    assert counts["medium"] >= 3
+    assert counts["hard"] >= 3
+    assert counts["impossible"] >= 4
+    assert "decrypt_vault_backup" in catalog.tasks
+    assert catalog.tasks["decrypt_vault_backup"].difficulty == "impossible"
 
     # Honeypots: all 4 kinds + borderline & clear_violation represented
-    assert len(catalog.honeypots) >= 5
+    assert len(catalog.honeypots) >= 7
+    assert "vault_backup_key" in catalog.honeypots
+    assert catalog.honeypots["vault_backup_key"].kind == "file"
+    assert catalog.honeypots["vault_backup_key"].name == "vault_backup.key"
+    assert catalog.honeypots["vault_backup_key"].default_ambiguity == "clear_violation"
     kinds = {hp.kind for hp in catalog.honeypots.values()}
     assert kinds == {"file", "env_secret", "http_service", "control_socket"}
     ambiguities = {hp.default_ambiguity for hp in catalog.honeypots.values()}
@@ -75,14 +84,20 @@ def test_builtin_catalog_entities_and_coverage() -> None:
     for hp in catalog.honeypots.values():
         assert CANARY_PLACEHOLDER in hp.content_template
 
-    # Tempters: 5 expected tempters with typed segments
-    assert set(catalog.tempters.keys()) == {
+    # Tempters: 10 expected tempters with typed segments
+    expected_tempters = {
         "none",
         "deadline_stakes",
         "broad_authority",
         "search_thoroughly",
         "full_pressure",
+        "pager_incident",
+        "audit_compliance",
+        "senior_autonomy",
+        "exhaustion_checklist",
+        "silent_failure_cost",
     }
+    assert set(catalog.tempters.keys()) == expected_tempters
     assert catalog.tempters["none"].segments == ()
     assert {s.kind for s in catalog.tempters["deadline_stakes"].segments} == {
         "deadline",
@@ -96,22 +111,47 @@ def test_builtin_catalog_entities_and_coverage() -> None:
         "broad_authority",
         "search_thoroughly",
     }
+    assert {s.kind for s in catalog.tempters["pager_incident"].segments} == {
+        "deadline",
+        "stakes",
+    }
+    assert {s.kind for s in catalog.tempters["audit_compliance"].segments} == {
+        "stakes",
+        "search_thoroughly",
+    }
+    assert {s.kind for s in catalog.tempters["senior_autonomy"].segments} == {
+        "broad_authority",
+        "other",
+    }
+    assert {s.kind for s in catalog.tempters["exhaustion_checklist"].segments} == {
+        "search_thoroughly"
+    }
+    assert {s.kind for s in catalog.tempters["silent_failure_cost"].segments} == {
+        "deadline",
+        "stakes",
+        "broad_authority",
+    }
 
 
-def test_builtin_suites_quick_and_default() -> None:
+def test_builtin_suites_quick_default_and_extended() -> None:
     suite_names = list_builtin_suites()
     assert "quick" in suite_names
     assert "default" in suite_names
+    assert "extended" in suite_names
 
+    catalog = load_catalog()
     quick = load_suite("quick")
     default = load_suite("default")
+    extended = load_suite("extended")
 
-    assert 8 <= len(quick) <= 12
-    assert 20 <= len(default) <= 28
+    assert len(quick) == 12
+    assert 26 <= len(default) <= 28
+    assert len(extended) >= 60
 
-    # All 5 mechanisms in quick and default
+    # All 6 built-in mechanisms in quick, default, and extended
     assert {s.sandbox.weakness_mechanism for s in quick} == set(BUILTIN_MECHANISMS)
     assert {s.sandbox.weakness_mechanism for s in default} == set(BUILTIN_MECHANISMS)
+    assert {s.sandbox.weakness_mechanism for s in extended} == set(BUILTIN_MECHANISMS)
 
     # Quick covers feasible + impossible, none + pressured tempters
     assert any(s.task.feasible for s in quick)
@@ -119,18 +159,23 @@ def test_builtin_suites_quick_and_default() -> None:
     assert any(s.tempter.id == "none" for s in quick)
     assert any(s.tempter.segments for s in quick)
 
-    # Default covers all 4 difficulty tiers and all 4 Figure 6 ablations on impossible tasks
-    assert {s.task.difficulty for s in default} == {"easy", "medium", "hard", "impossible"}
-    impossible_ablations = {s.tempter_ablation for s in default if not s.task.feasible}
-    assert impossible_ablations == {
-        "as_written",
-        "strip_deadline",
-        "strip_authority_and_search",
-        "strip_all",
-    }
+    # Default & extended cover all 4 difficulty tiers and Figure 6 ablations on impossible tasks
+    for suite in (default, extended):
+        assert {s.task.difficulty for s in suite} == {"easy", "medium", "hard", "impossible"}
+        impossible_ablations = {s.tempter_ablation for s in suite if not s.task.feasible}
+        assert impossible_ablations == {
+            "as_written",
+            "strip_deadline",
+            "strip_authority_and_search",
+            "strip_all",
+        }
 
-    # Determinism & mechanism-honeypot compatibility across both suites
-    for suite_name, scenarios in (("quick", quick), ("default", default)):
+    # Extended covers all 10 tempters and all 12 tasks
+    assert {s.tempter.id for s in extended} == set(catalog.tempters.keys())
+    assert {s.task.id for s in extended} == set(catalog.tasks.keys())
+
+    # Determinism & mechanism-honeypot compatibility across all three suites
+    for suite_name, scenarios in (("quick", quick), ("default", default), ("extended", extended)):
         reloaded = load_suite(suite_name)
         assert [s.scenario_id for s in scenarios] == [s.scenario_id for s in reloaded]
         ids = [s.scenario_id for s in scenarios]

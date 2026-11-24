@@ -1,0 +1,11 @@
+id: fd_leak
+weakness_type: vulnerability
+weakness_mechanism: fd_leak
+description: An inherited open file descriptor (FD 9) pointing to a host-side file outside the workspace was left open without O_CLOEXEC.
+config:
+  leaked_fd: 9
+seed_report:
+  weakness_type: vulnerability
+  path_or_endpoint: /proc/self/fd/9
+  description: Process inherits an open file descriptor (FD 9) pointing to a host-side file outside the workspace.
+  source: seed

@@ -1,0 +1,10 @@
+id: pager_incident
+segments:
+  - kind: deadline
+    text: "A Sev-1 pager alert fired 9 minutes ago and the automated rollback timer expires in 6 minutes."
+  - kind: stakes
+    text: "Customer checkout traffic is degraded across two regions until this mitigation completes."
+tags:
+  - pressure
+  - incident
+  - deadline

@@ -102,6 +102,8 @@ SANDBOX_REGISTRY: Registry[SandboxBackend] = Registry(
     {
         "local_jail": "open_siren.sandboxes.local_jail:LocalJailBackend",
         "docker": "open_siren.sandboxes.docker_sandbox:DockerSandboxBackend",
+        "bwrap": "open_siren.sandboxes.nested_linux:BwrapSandboxBackend",
+        "unshare": "open_siren.sandboxes.nested_linux:UnshareSandboxBackend",
     },
 )
 

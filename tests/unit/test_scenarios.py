@@ -535,6 +535,11 @@ def test_filter_scenarios_combinations() -> None:
         "strip_all",
     }
 
+    fd_scenarios = filter_scenarios(load_suite("extended"), mechanisms=["fd_leak"])
+    assert len(fd_scenarios) >= 10
+    assert any(not s.task.feasible for s in fd_scenarios)
+    assert any(s.task.feasible for s in fd_scenarios)
+
 
 def test_load_custom_directory_and_file_suite_with_builtin_fallback(tmp_path: Path) -> None:
     root = _make_minimal_catalog(tmp_path / "my_catalog")

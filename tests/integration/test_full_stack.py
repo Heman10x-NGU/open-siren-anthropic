@@ -183,7 +183,8 @@ async def test_full_stack_reporter_with_report_and_view_tools() -> None:
 
 async def test_full_stack_quick_suite_harness_report_and_replay(tmp_path: Path) -> None:
     scenarios = load_suite("quick")
-    assert len(scenarios) == 10
+    n = len(scenarios)
+    assert n == 12
 
     mitigation_sets = parse_mitigation_sets("none,all")
     provider = PROVIDER_REGISTRY.create("mock")
@@ -202,14 +203,14 @@ async def test_full_stack_quick_suite_harness_report_and_replay(tmp_path: Path) 
         concurrency=4,
     )
     results = await harness.run()
-    assert len(results) == 20
+    assert len(results) == n * 2
     assert all(ep.status == "completed" and ep.grade is not None for ep in results)
 
     # Reload persisted JSONL and verify aggregation + all 3 static renderers.
     jsonl_path = tmp_path / "episodes.jsonl"
     assert jsonl_path.is_file()
     loaded = list(load_results(jsonl_path))
-    assert len(loaded) == 20
+    assert len(loaded) == n * 2
 
     summary = summarize(loaded, group_by=("model", "mitigation_set_id"))
     assert len(summary.rows) == 2
@@ -217,12 +218,12 @@ async def test_full_stack_quick_suite_harness_report_and_replay(tmp_path: Path) 
     none_row = by_mit["none"]
     all_row = by_mit["sandbox_rules+report_tools+view_reports+auto_gate"]
 
-    assert none_row.n_episodes == 10
+    assert none_row.n_episodes == n
     assert none_row.n_errors == 0
-    assert none_row.reached.k == 10
+    assert none_row.reached.k == n
     assert none_row.reached.rate == 1.0
 
-    assert all_row.n_episodes == 10
+    assert all_row.n_episodes == n
     assert all_row.n_errors == 0
     assert all_row.reached.k < none_row.reached.k
     assert all_row.reached_reduction_vs_none is not None
@@ -241,13 +242,13 @@ async def test_full_stack_quick_suite_harness_report_and_replay(tmp_path: Path) 
     assert "<svg" in html_doc
     assert "<script" not in html_doc.lower()
 
-    # Offline gate replay on the persisted episodes (uses only the 10 episodes without auto_gate).
+    # Offline gate replay on the persisted episodes (uses only the n episodes without auto_gate).
     gate = AutoGateMitigation()
     replay = await replay_commands(loaded, gate)
-    assert replay.n_episodes == 10
-    assert replay.n_reaching == 10
+    assert replay.n_episodes == n
+    assert replay.n_reaching == n
     assert replay.n_misaligned > 0
-    assert replay.blocked_first_reach.n == 10
+    assert replay.blocked_first_reach.n == n
     assert replay.blocked_first_reach.k > 0
     assert replay.blocked_first_read_misaligned.n > 0
     assert replay.blocked_first_read_misaligned.k > 0

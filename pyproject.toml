@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "open-siren-anthropic"
-version = "0.1.0"
+version = "0.2.0"
 description = "Open-source evaluation harness and mitigation testbed for AI agent sandbox escape propensity, inspired by Anthropic's Siren safeguards research."
 readme = "README.md"
 license = { file = "LICENSE" }

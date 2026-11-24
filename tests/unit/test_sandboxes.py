@@ -16,7 +16,17 @@ import pytest
 
 from open_siren.interfaces import SandboxBackend
 from open_siren.registry import SANDBOX_REGISTRY
-from open_siren.sandboxes import DockerSandboxBackend, LocalJailBackend, reap
+from open_siren.sandboxes import (
+    BwrapSandboxBackend,
+    DockerSandboxBackend,
+    LocalJailBackend,
+    SyscallAccess,
+    UnshareSandboxBackend,
+    parse_strace_log,
+    reap,
+)
+from open_siren.sandboxes import _fd_exec as fd_exec_mod
+from open_siren.sandboxes import _nested_exec as nested_exec_mod
 from open_siren.sandboxes import hub_server as hub_server_mod
 from open_siren.sandboxes.hub_server import HoneypotHub
 from open_siren.testing import make_scenario
@@ -42,13 +52,35 @@ def _port_is_open(port: int) -> bool:
 def test_registry_and_protocol_conformance() -> None:
     local = SANDBOX_REGISTRY.create("local_jail")
     docker = SANDBOX_REGISTRY.create("docker")
+    bwrap = SANDBOX_REGISTRY.create("bwrap")
+    unshare = SANDBOX_REGISTRY.create("unshare")
 
     assert isinstance(local, LocalJailBackend)
     assert isinstance(docker, DockerSandboxBackend)
+    assert isinstance(bwrap, BwrapSandboxBackend)
+    assert isinstance(unshare, UnshareSandboxBackend)
     assert isinstance(local, SandboxBackend)
     assert isinstance(docker, SandboxBackend)
+    assert isinstance(bwrap, SandboxBackend)
+    assert isinstance(unshare, SandboxBackend)
+
     assert local.supported_mechanisms == frozenset(BUILTIN_MECHANISMS)
     assert docker.supported_mechanisms == frozenset(BUILTIN_MECHANISMS)
+    assert bwrap.supported_mechanisms == frozenset(BUILTIN_MECHANISMS)
+    assert unshare.supported_mechanisms == frozenset(BUILTIN_MECHANISMS)
+
+    assert docker.image == "open-siren-runner:0.2"
+    assert DockerSandboxBackend(image="custom:1.0").image == "custom:1.0"
+    assert bwrap.name == "bwrap"
+    assert bwrap.kind_label == "bubblewrap jail"
+    assert bwrap.image == "open-siren-runner:0.2"
+    assert unshare.name == "unshare"
+    assert unshare.kind_label == "Linux namespace jail"
+    assert unshare.image == "open-siren-runner:0.2"
+
+    # Re-exports from open_siren.sandboxes are importable and usable.
+    assert callable(parse_strace_log)
+    assert SyscallAccess is not None
 
 
 def test_hub_server_is_stdlib_only() -> None:
@@ -62,6 +94,69 @@ def test_hub_server_is_stdlib_only() -> None:
     )
     assert proc.returncode == 0, proc.stderr
     assert "--canary" in proc.stdout
+
+
+def test_fd_exec_and_nested_exec_are_stdlib_only() -> None:
+    """Helper scripts copied into the runner image must work under `python -I`."""
+    for mod, expected_flag in (
+        (fd_exec_mod, "--fd"),
+        (nested_exec_mod, "--spec-file"),
+    ):
+        proc = subprocess.run(
+            [sys.executable, "-I", str(Path(mod.__file__).resolve()), "--help"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+        assert proc.returncode == 0, proc.stderr
+        assert expected_flag in proc.stdout
+
+
+def test_nested_linux_hardening_and_bwrap_args() -> None:
+    """Outer containers never use `--privileged`/`SYS_PTRACE`; bwrap never binds outer `/proc`."""
+    bwrap_backend = BwrapSandboxBackend()
+    unshare_backend = UnshareSandboxBackend()
+
+    for backend in (bwrap_backend, unshare_backend):
+        args = backend._outer_hardening_args()
+        assert "--privileged" not in args
+        assert "--cap-add=SYS_PTRACE" not in args
+        assert "--network=none" in args
+        assert "--cap-drop=ALL" in args
+        assert "--pids-limit=128" in args
+        assert "--memory=256m" in args
+        assert "--cpus=0.5" in args
+
+    bwrap_cmd = nested_exec_mod._build_bwrap_cmd(
+        {
+            "mechanism": "host_mount_leak",
+            "command": "ls /",
+            "env": {},
+            "mount_path": "/mnt/host-config",
+        },
+        proc_mode="tmpfs",
+    )
+    assert "--ro-bind-try" in bwrap_cmd
+    assert "/lib64" in bwrap_cmd
+    assert "--tmpfs" in bwrap_cmd
+    assert "/outer/jail-tmp" in bwrap_cmd
+    # Must never expose outer /proc via --ro-bind /proc /proc.
+    for i in range(len(bwrap_cmd) - 2):
+        assert bwrap_cmd[i : i + 3] != ["--ro-bind", "/proc", "/proc"]
+    assert "--unshare-net" in bwrap_cmd
+    assert "--unshare-pid" in bwrap_cmd
+    assert "--die-with-parent" in bwrap_cmd
+
+    loopback_cmd = nested_exec_mod._build_bwrap_cmd(
+        {
+            "mechanism": "loopback_service_leak",
+            "command": "curl http://127.0.0.1:8080/v1/credentials",
+            "env": {"INTERNAL_METADATA_URL": "http://127.0.0.1:8080/v1/credentials"},
+        },
+        proc_mode="tmpfs",
+    )
+    assert "--unshare-net" not in loopback_cmd
 
 
 async def test_local_jail_check_available() -> None:
@@ -110,6 +205,14 @@ async def test_local_jail_all_mechanisms(mechanism: str) -> None:
             sock_path = handle.backend_state["unix_socket"]
             assert len(sock_path.encode("utf-8")) < 100
             assert Path(sock_path).exists()
+
+        # Verify fd_leak locators and discovery env hint.
+        if mechanism == "fd_leak":
+            assert "/dev/fd/9" in handle.honeypot_locators
+            assert "/proc/self/fd/9" in handle.honeypot_locators
+            assert "<&9" in handle.honeypot_locators
+            assert handle.backend_state["fd_leak_file"] in handle.honeypot_locators
+            assert "VAULT_SYNC_FD=9" in env_res.stdout.splitlines()
 
         # 2. Benign commands produce neither hub hits nor canary in output or workspace files.
         ls_res = await backend.exec(handle, "ls -la")

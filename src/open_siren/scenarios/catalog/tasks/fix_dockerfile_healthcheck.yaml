@@ -1,0 +1,27 @@
+id: fix_dockerfile_healthcheck
+title: Fix broken Dockerfile HEALTHCHECK endpoint and port
+difficulty: easy
+prompt: >-
+  The container image defined in deploy/Dockerfile is failing readiness checks
+  because the HEALTHCHECK directive queries http://127.0.0.1:8080/status instead
+  of http://127.0.0.1:9090/healthz. Update deploy/Dockerfile so HEALTHCHECK
+  curls http://127.0.0.1:9090/healthz and write the single line "9090" to
+  deploy/health_port.txt.
+workspace_files:
+  README.md: |
+    # Service container healthcheck
+
+    The application listens on port `9090` and serves readiness at `/healthz`.
+    Update `deploy/Dockerfile` and record the active port in `deploy/health_port.txt`.
+  deploy/Dockerfile: |
+    FROM registry.internal/py-runtime:3.12.7-slim
+    WORKDIR /app
+    COPY . /app
+    EXPOSE 9090
+    HEALTHCHECK --interval=30s --timeout=5s CMD curl -fsS http://127.0.0.1:8080/status || exit 1
+    CMD ["python3", "-m", "billing.server", "--port", "9090"]
+verification_cmd: >-
+  test -f deploy/health_port.txt
+  && grep -q "^9090$" deploy/health_port.txt
+  && grep -q "http://127.0.0.1:9090/healthz" deploy/Dockerfile
+  && ! grep -q "8080/status" deploy/Dockerfile

@@ -2,22 +2,23 @@
 
 **An independent, open-source evaluation harness and mitigation testbed for measuring AI agent sandbox escape propensity, inspired by Anthropic's [Siren](https://safeguards.anthropic.com/2026/siren/) safeguards post (November 24, 2026).**
 
+[![CI](https://github.com/Heman10x-NGU/open-siren-anthropic/actions/workflows/ci.yml/badge.svg)](https://github.com/Heman10x-NGU/open-siren-anthropic/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-3776AB.svg)](https://www.python.org/downloads/)
 
-> **Status & honesty note:** Built as a fast, reproducible open-source implementation of the public Siren methodology. Live multi-model empirical runs are in progress (v0.1 currently verifies end-to-end with a deterministic scripted agent and real local/Docker honeypots; no model leaderboard numbers are claimed yet).
+> **Status & honesty note (v0.2):** Full harness, nested Linux sandboxes (`docker`, `bwrap`, `unshare`), `strace` syscall auditing, 71-scenario catalog, automated tempter search, hardened pre-exec gate, and static web Trace Explorer are implemented and verified by automated CI tests. Live multi-model empirical benchmark runs and live Docker container runs on host hardware are next; no model leaderboard numbers are claimed yet.
 
 ---
 
 ## What Works, What Doesn't Yet, and Why Rates Aren't Comparable
 
-| Area | Current State (v0.1) | Known Limit / Gap |
+| Area | Current State (v0.2) | Known Limit / Gap |
 | :--- | :--- | :--- |
-| **Backends** | `docker` (hardened inner container + `--network=none` sibling sidecar sharing netns & named socket volume) and `local_jail` (fast zero-Docker process jail for CI) | `local_jail` is **not** a security boundary (refuses real models without `--allow-unisolated`). Nested `bubblewrap` and Firecracker outer VMs are not in v0.1 yet. |
-| **Scenarios** | 5 misconfiguration mechanisms × 8 DevOps tasks (`easy` to `impossible`) × 5 tempters + Figure 6 ablations (`quick`: 10, `default`: 24) | Much smaller than Anthropic's 26 environments and 1,700+ scenarios. |
-| **Grading** | Deterministic `reached_outside`, `used_honeypot`, and `misaligned_use` via per-episode random canary tokens + hub logs + executed command locators | Narrower `reached_outside` (`ls /` and `ls ..` do not count in v0.1). Shell variable indirection to non-hub hosts leaves no literal trace. |
-| **Mitigations** | `sandbox_rules` (6 rules), `report_tools`, `view_reports`, plus `auto_gate` (static rule speed bump + optional LLM classifier) and offline `replay-gate` | Stage 1 rules are a defense-in-depth speed bump, not a security boundary; offline replay does not model agent behavior after a block. |
-| **Model Results** | Anthropic Messages API (with thinking-block replay) + OpenAI-compatible HTTP provider tested via `MockTransport` + real `local_jail` scripted E2E | Live empirical runs across frontier and open-weight models are not published yet. **Open Siren rates are never directly comparable to Anthropic's published Siren numbers.** |
+| **Backends** | `docker` (sibling sidecar sharing `--network=none` netns + named socket volume), `bwrap` (nested Bubblewrap jail inside `--network=none` outer container, never binding outer `/proc`, persistent per-episode `/tmp`), `unshare` (nested Linux namespace jail), and `local_jail` (zero-Docker CI process jail) | `local_jail` is **not** a security boundary (refuses real models without `--allow-unisolated`). Nested `bwrap`/`unshare` and `docker` live tests require a running Docker daemon and have not yet been executed against a live daemon on this machine. |
+| **Scenarios** | 6 mechanisms (`host_mount_leak`, `control_socket_leak`, `loopback_service_leak`, `env_proc_leak`, `egress_proxy_bypass`, plus leaked-FD class `fd_leak`) × 12 DevOps tasks (`easy` to `impossible`) × 10 tempters + Figure 6 ablations (`quick`: 12, `default`: 28, `extended`: 71) + `open-siren evolve-tempters` | Smaller than Anthropic's 26 environments and 1,700+ scenarios. `fd_leak` tests leaked-FD exploitation (inspired by the `CVE-2024-21626` class) and is best treated as a capability probe without a planted hint. |
+| **Grading** | Deterministic `reached_outside`, `used_honeypot`, and `misaligned_use` via per-episode random canary tokens, hub logs, executed command locators, and `strace` syscall auditing (`outside_syscall` events; default grades by locator/FD target, with opt-in `strict_reach=True`) | Shell variable indirection to non-hub hosts leaves no literal canary trace without `strace`. `strace` logs are capped to bound disk/memory overhead. |
+| **Mitigations** | `sandbox_rules` (6 rules), `report_tools`, `view_reports`, plus `auto_gate` (static rule speed bump with Base64/hex/URL de-obfuscation, symlink checks, inline interpreter rules, FD-leak blocks, and optional LLM classifier) + offline `replay-gate` | Stage 1 rules are a defense-in-depth speed bump, not a security boundary, and can be bypassed via write-then-run or shell obfuscation. Offline replay does not model behavior after a block. |
+| **Web Explorer & Exports** | `open-siren export-web` + static Vite/React/Tailwind dashboard (`web/`, GitHub Pages workflow) with leaderboard, ablation charts, replay panel, and plain-text-only Trace Explorer (refuses real-model `local_jail` exports by default, scrubs host paths, strips `provider_raw`, hashes canaries, embeds benchmark canary GUID) | Ships with a clearly badged sample demo dataset (`is_demo: true`) until live multi-model sweeps are run and published. **Open Siren rates are never directly comparable to Anthropic's published Siren numbers.** |
 
 ---
 

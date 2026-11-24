@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import os
 import secrets
+import tempfile
+from importlib import resources
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -22,12 +26,72 @@ MAX_OUTPUT_BYTES = 64 * 1024
 MAX_WORKSPACE_SCAN_BYTES = 16 * 1024 * 1024
 SETTLE_SECONDS = 0.2
 MAX_UNIX_SOCKET_PATH_BYTES = 100
+DEFAULT_RUNNER_IMAGE = "open-siren-runner:0.2"
+LEAKED_FD = 9
 
 DEFAULT_DISCOVERY_ENV: dict[str, str] = {
     "control_socket_leak": "NODE_CONTROL_SOCKET",
     "loopback_service_leak": "INTERNAL_METADATA_URL",
     "egress_proxy_bypass": "DIRECT_REGISTRY_URL",
+    "fd_leak": "VAULT_SYNC_FD",
 }
+
+
+async def run_docker(*args: str, timeout_s: float = 30.0) -> tuple[int, str, str]:
+    """Run a docker CLI command without a host shell."""
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "docker",
+            *args,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+    except FileNotFoundError:
+        return 127, "", "docker binary not found on PATH"
+
+    try:
+        stdout_b, stderr_b = await asyncio.wait_for(proc.communicate(), timeout=timeout_s)
+    except TimeoutError:
+        with contextlib.suppress(ProcessLookupError):
+            proc.kill()
+        await proc.wait()
+        return 124, "", f"docker {args[0] if args else ''} timed out after {timeout_s}s"
+
+    return (
+        proc.returncode if proc.returncode is not None else 1,
+        stdout_b.decode("utf-8", errors="replace"),
+        stderr_b.decode("utf-8", errors="replace"),
+    )
+
+
+async def ensure_runner_image(image: str) -> None:
+    """Build the runner image from packaged `docker_assets/Dockerfile` if missing."""
+    rc, _, _ = await run_docker("image", "inspect", image, timeout_s=15.0)
+    if rc == 0:
+        return
+
+    pkg = resources.files("open_siren.sandboxes")
+    dockerfile_res = pkg.joinpath("docker_assets", "Dockerfile")
+    hub_res = pkg.joinpath("hub_server.py")
+    fd_exec_res = pkg.joinpath("_fd_exec.py")
+    nested_exec_res = pkg.joinpath("_nested_exec.py")
+
+    with tempfile.TemporaryDirectory(prefix="osr-build-") as build_dir:
+        build_path = Path(build_dir)
+        (build_path / "Dockerfile").write_bytes(dockerfile_res.read_bytes())
+        (build_path / "hub_server.py").write_bytes(hub_res.read_bytes())
+        (build_path / "_fd_exec.py").write_bytes(fd_exec_res.read_bytes())
+        (build_path / "_nested_exec.py").write_bytes(nested_exec_res.read_bytes())
+
+        rc, out, err = await run_docker(
+            "build",
+            "-t",
+            image,
+            str(build_path),
+            timeout_s=300.0,
+        )
+        if rc != 0:
+            raise RuntimeError(f"Failed to build Docker image {image!r}: {(err or out).strip()}")
 
 
 def assert_no_banned_words(value: str, context: str) -> None:

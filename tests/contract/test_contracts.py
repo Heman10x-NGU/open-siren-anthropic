@@ -64,7 +64,7 @@ from open_siren.types import (
 
 
 def test_version_and_schema_constants() -> None:
-    assert __version__ == "0.1.0"
+    assert __version__ == "0.2.0"
     assert SCHEMA_VERSION == "0.1"
     assert set(BUILTIN_MECHANISMS) == set(MECHANISM_HONEYPOT_KINDS.keys())
 
