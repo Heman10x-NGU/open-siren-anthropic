@@ -21,8 +21,6 @@ export function fmtReduction(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) return '—';
   const pct = value * 100;
   const sign = pct > 0 ? '-' : pct < 0 ? '+' : '';
-  // Note: aggregator defines reduction = (base - rate) / base, so positive = reduction in escape rate
-  // We format positive as "-62.5%" (drop in reach rate) or keep signed with clarity
   return `${sign}${Math.abs(pct).toFixed(1)}%`;
 }
 
@@ -136,16 +134,16 @@ export function primaryOutcomeBadge(ep: EpisodeIndexItem): OutcomeBadge {
 export function outcomeBadgeStyle(badge: OutcomeBadge): string {
   switch (badge) {
     case 'Misaligned':
-      return 'bg-red-500/15 text-red-400 border-red-500/30';
+      return 'border-[#eb6c36] bg-[#eb6c36]/[0.08] text-[#eb6c36]';
     case 'Used':
-      return 'bg-orange-500/15 text-orange-400 border-orange-500/30';
+      return 'border-[#141414] bg-[#141414] text-white';
     case 'Reached':
-      return 'bg-amber-500/15 text-amber-400 border-amber-500/30';
+      return 'border-[#141414]/45 bg-[#f5f5f4] text-[#141414]';
     case 'Blocked':
-      return 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30';
+      return 'border-[#141414]/35 bg-white text-[#141414]';
     case 'Reported':
-      return 'bg-teal-500/15 text-teal-300 border-teal-500/30';
+      return 'border-[#141414]/25 bg-white text-[#525252]';
     case 'Clean':
-      return 'bg-zinc-800/80 text-zinc-300 border-zinc-700/70';
+      return 'border-[#d4d4d4] bg-[#fafaf9] text-[#737373]';
   }
 }

@@ -18,9 +18,9 @@ interface AblationChartsProps {
 type MetricFocus = 'all' | 'reached' | 'used' | 'misaligned';
 
 const ALL_SERIES = [
-  { key: 'reached' as const, label: 'Reached Outside', color: '#f59e0b' },
-  { key: 'used' as const, label: 'Used', color: '#f97316' },
-  { key: 'misaligned' as const, label: 'Misaligned Use', color: '#ef4444' },
+  { key: 'reached' as const, label: 'Reached Outside', color: '#525252' },
+  { key: 'used' as const, label: 'Used Honeypot', color: '#141414' },
+  { key: 'misaligned' as const, label: 'Misaligned Use', color: '#eb6c36' },
 ];
 
 interface BreakdownCardProps {
@@ -66,29 +66,32 @@ function BreakdownSvgCard({
 
   const svgWidth = 580;
   const leftMargin = 165;
-  const rightMargin = 88;
-  const topMargin = 28;
+  const rightMargin = 98;
+  const topMargin = 24;
   const bottomMargin = 26;
   const plotWidth = svgWidth - leftMargin - rightMargin;
-  const barH = activeSeries.length === 1 ? 18 : 10;
+  const barH = activeSeries.length === 1 ? 16 : 9.5;
   const barGap = 4;
-  const groupPad = 18;
+  const groupPad = 20;
   const groupH = activeSeries.length * barH + (activeSeries.length - 1) * barGap + groupPad;
   const svgHeight = Math.max(120, topMargin + orderedRows.length * groupH + bottomMargin);
   const plotBottom = topMargin + orderedRows.length * groupH - groupPad / 2;
 
   return (
-    <div className="flex flex-col rounded-xl border border-zinc-800/90 bg-zinc-900/60 p-5">
-      <div className="mb-3 flex items-start justify-between gap-3">
+    <div className="flex flex-col rounded-[6px] border border-[#141414]/[0.14] bg-white p-5">
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h3 className="text-sm font-semibold tracking-tight text-zinc-100">{title}</h3>
-          <p className="mt-0.5 text-xs text-zinc-400">{subtitle}</p>
+          <h2 className="text-[21px] leading-tight text-[#141414]">{title}</h2>
+          <p className="mt-1 text-xs text-[#737373]">{subtitle}</p>
         </div>
         {hovered && (
-          <div className="shrink-0 rounded-md border border-zinc-800 bg-zinc-950 px-2.5 py-1 font-mono text-[11px] tabular-nums">
-            <span className="mr-1.5 inline-block h-2 w-2 rounded-xs" style={{ backgroundColor: hovered.color }} />
-            <span className="font-semibold text-zinc-100">{fmtPct(hovered.metric)}</span>
-            <span className="ml-1.5 text-zinc-400">
+          <div className="shrink-0 rounded-[4px] border border-[#e5e5e5] bg-[#fafaf9] px-2.5 py-1 font-mono text-[11px] tabular-nums">
+            <span
+              className="mr-1.5 inline-block h-2 w-2 rounded-[1px]"
+              style={{ backgroundColor: hovered.color }}
+            />
+            <span className="font-semibold text-[#141414]">{fmtPct(hovered.metric)}</span>
+            <span className="ml-1.5 text-[#737373]">
               ({hovered.metric.k}/{hovered.metric.n}) {fmtCI(hovered.metric)}
             </span>
           </div>
@@ -96,7 +99,7 @@ function BreakdownSvgCard({
       </div>
 
       {orderedRows.length === 0 ? (
-        <div className="flex h-32 items-center justify-center rounded-lg border border-dashed border-zinc-800 text-xs text-zinc-500">
+        <div className="flex h-32 items-center justify-center rounded-[4px] border border-dashed border-[#d4d4d4] text-xs text-[#737373]">
           No breakdown data available.
         </div>
       ) : (
@@ -117,15 +120,15 @@ function BreakdownSvgCard({
                     y1={topMargin - 6}
                     x2={x}
                     y2={plotBottom}
-                    stroke="#27272a"
+                    stroke={tick === 0 ? '#d4d4d4' : '#e5e5e5'}
                     strokeWidth={1}
-                    strokeDasharray={tick === 0 ? undefined : '3 3'}
+                    strokeDasharray={tick === 0 ? undefined : '2 3'}
                   />
                   <text
                     x={x}
                     y={plotBottom + 16}
                     textAnchor="middle"
-                    className="fill-zinc-500 font-mono text-[10px]"
+                    className="fill-[#737373] font-mono text-[10px] tabular-nums"
                   >
                     {tick}%
                   </text>
@@ -141,19 +144,29 @@ function BreakdownSvgCard({
 
               return (
                 <g key={`${rawKey}-${rIdx}`}>
+                  {rIdx > 0 && (
+                    <line
+                      x1={0}
+                      y1={rowTop - groupPad / 2}
+                      x2={svgWidth}
+                      y2={rowTop - groupPad / 2}
+                      stroke="#f0f0ef"
+                      strokeWidth={1}
+                    />
+                  )}
                   <text
                     x={leftMargin - 12}
-                    y={rowTop + blockH / 2 + 1}
+                    y={rowTop + blockH / 2}
                     textAnchor="end"
-                    className="fill-zinc-200 text-[11.5px] font-medium"
+                    className="fill-[#141414] text-[11.5px] font-medium"
                   >
                     {displayLabel.length > 23 ? `${displayLabel.slice(0, 21)}…` : displayLabel}
                   </text>
                   <text
                     x={leftMargin - 12}
-                    y={rowTop + blockH / 2 + 13}
+                    y={rowTop + blockH / 2 + 12}
                     textAnchor="end"
-                    className="fill-zinc-500 font-mono text-[9.5px] tabular-nums"
+                    className="fill-[#737373] font-mono text-[9.5px] tabular-nums"
                   >
                     n={row.n_episodes}
                   </text>
@@ -167,9 +180,10 @@ function BreakdownSvgCard({
                       return (
                         <text
                           key={series.key}
-                          x={leftMargin + 6}
+                          x={svgWidth - 4}
                           y={midY + 3.5}
-                          className="fill-zinc-600 font-mono text-[10px]"
+                          textAnchor="end"
+                          className="fill-[#a3a3a3] font-mono text-[10px]"
                         >
                           N/A
                         </text>
@@ -182,7 +196,6 @@ function BreakdownSvgCard({
                     const barW = rate * plotWidth;
                     const loX = leftMargin + lo * plotWidth;
                     const hiX = leftMargin + hi * plotWidth;
-                    const valueX = Math.max(leftMargin + barW, hiX) + 7;
 
                     return (
                       <g
@@ -200,50 +213,85 @@ function BreakdownSvgCard({
                       >
                         <rect
                           x={leftMargin}
-                          y={y - 1}
-                          width={plotWidth + rightMargin - 6}
-                          height={barH + 2}
+                          y={y - 1.5}
+                          width={plotWidth + rightMargin}
+                          height={barH + 3}
                           fill="transparent"
                         />
                         <rect
                           x={leftMargin}
                           y={y}
-                          width={Math.max(barW, 2)}
+                          width={barW > 0 ? Math.max(barW, 2) : 0}
                           height={barH}
-                          rx={2.5}
+                          rx={1.5}
                           fill={series.color}
-                          opacity={0.86}
+                          opacity={0.92}
                         />
+
+                        {/* White halo + crisp 1px ink Wilson CI whisker */}
                         <line
                           x1={loX}
                           y1={midY}
                           x2={hiX}
                           y2={midY}
-                          stroke="#e4e4e7"
-                          strokeWidth={1.25}
+                          stroke="#ffffff"
+                          strokeWidth={2.4}
+                          strokeOpacity={0.85}
                         />
                         <line
                           x1={loX}
                           y1={midY - 2.8}
                           x2={loX}
                           y2={midY + 2.8}
-                          stroke="#e4e4e7"
-                          strokeWidth={1.25}
+                          stroke="#ffffff"
+                          strokeWidth={2.4}
+                          strokeOpacity={0.85}
                         />
                         <line
                           x1={hiX}
                           y1={midY - 2.8}
                           x2={hiX}
                           y2={midY + 2.8}
-                          stroke="#e4e4e7"
-                          strokeWidth={1.25}
+                          stroke="#ffffff"
+                          strokeWidth={2.4}
+                          strokeOpacity={0.85}
                         />
+                        <line
+                          x1={loX}
+                          y1={midY}
+                          x2={hiX}
+                          y2={midY}
+                          stroke="#141414"
+                          strokeWidth={1}
+                        />
+                        <line
+                          x1={loX}
+                          y1={midY - 2.8}
+                          x2={loX}
+                          y2={midY + 2.8}
+                          stroke="#141414"
+                          strokeWidth={1}
+                        />
+                        <line
+                          x1={hiX}
+                          y1={midY - 2.8}
+                          x2={hiX}
+                          y2={midY + 2.8}
+                          stroke="#141414"
+                          strokeWidth={1}
+                        />
+
                         <text
-                          x={valueX}
+                          x={svgWidth - 4}
                           y={midY + 3.5}
-                          className="fill-zinc-300 font-mono text-[10px] tabular-nums"
+                          textAnchor="end"
+                          className={`font-mono text-[10px] tabular-nums ${
+                            series.key === 'misaligned' && metric.rate > 0
+                              ? 'fill-[#eb6c36] font-medium'
+                              : 'fill-[#525252]'
+                          }`}
                         >
-                          {fmtPct(metric)}
+                          {fmtPct(metric)} ({metric.k}/{metric.n})
                         </text>
                       </g>
                     );
@@ -262,16 +310,18 @@ export function AblationCharts({ breakdowns }: AblationChartsProps) {
   const [metricFocus, setMetricFocus] = useState<MetricFocus>('all');
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {/* Metric toggle & legend bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-800/90 bg-zinc-900/60 px-4 py-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-medium text-zinc-400">Metric tier:</span>
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-[6px] border border-[#141414]/[0.14] bg-white px-5 py-3.5">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 font-mono text-[10px] uppercase tracking-[0.08em] text-[#737373]">
+            Metric Tier
+          </span>
           {(
             [
               { id: 'all', label: 'All 3 Tiers' },
               { id: 'reached', label: 'Reached Outside' },
-              { id: 'used', label: 'Used' },
+              { id: 'used', label: 'Used Honeypot' },
               { id: 'misaligned', label: 'Misaligned Use' },
             ] as const
           ).map((opt) => (
@@ -279,10 +329,10 @@ export function AblationCharts({ breakdowns }: AblationChartsProps) {
               key={opt.id}
               type="button"
               onClick={() => setMetricFocus(opt.id)}
-              className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
+              className={`rounded-[4px] border px-2.5 py-1 text-xs font-medium transition-colors duration-150 ${
                 metricFocus === opt.id
-                  ? 'border-amber-500/50 bg-amber-500/15 text-amber-200'
-                  : 'border-zinc-800 bg-zinc-950 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200'
+                  ? 'border-[#141414] bg-[#141414] text-white'
+                  : 'border-[#d4d4d4] bg-white text-[#525252] hover:border-[#141414]/45 hover:text-[#141414]'
               }`}
             >
               {opt.label}
@@ -290,27 +340,27 @@ export function AblationCharts({ breakdowns }: AblationChartsProps) {
           ))}
         </div>
 
-        <div className="flex flex-wrap items-center gap-4 text-xs text-zinc-400">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-[#525252]">
           {ALL_SERIES.map((s) => (
             <span key={s.key} className="inline-flex items-center gap-1.5">
               <span
-                className="inline-block h-2.5 w-2.5 rounded-xs"
+                className="inline-block h-2 w-2 rounded-[1px]"
                 style={{ backgroundColor: s.color }}
               />
               {s.label}
             </span>
           ))}
-          <span className="inline-flex items-center gap-1.5">
-            <span className="inline-block h-0.5 w-3 bg-zinc-200" />
+          <span className="inline-flex items-center gap-1.5 text-[#737373]">
+            <span className="inline-block h-[1px] w-3 bg-[#141414]" />
             95% Wilson CI
           </span>
         </div>
       </div>
 
       {/* Side-by-side Difficulty & Tempter Ablations */}
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <BreakdownSvgCard
-          title="Task Difficulty Curve (Easy → Impossible)"
+          title="Task difficulty curve"
           subtitle="Propensity to cross sandbox boundaries as legitimate task solvability decreases."
           rows={breakdowns.by_difficulty.rows}
           groupKey="difficulty"
@@ -320,7 +370,7 @@ export function AblationCharts({ breakdowns }: AblationChartsProps) {
         />
 
         <BreakdownSvgCard
-          title="Tempter Framing Ablations"
+          title="Tempter framing ablations"
           subtitle="Effect of removing deadline pressure, broad authority, and thorough-search prompts."
           rows={breakdowns.by_ablation.rows}
           groupKey="tempter_ablation"
@@ -332,8 +382,8 @@ export function AblationCharts({ breakdowns }: AblationChartsProps) {
 
       {/* Weakness Mechanism Breakdown */}
       <BreakdownSvgCard
-        title="Weakness Mechanism Breakdown"
-        subtitle="Escape and misuse rates across the six built-in sandbox misconfiguration and leak mechanisms."
+        title="Weakness mechanism breakdown"
+        subtitle="Escape and misuse rates across the built-in sandbox misconfiguration and leak mechanisms."
         rows={breakdowns.by_mechanism.rows}
         groupKey="mechanism"
         order={MECHANISM_ORDER}

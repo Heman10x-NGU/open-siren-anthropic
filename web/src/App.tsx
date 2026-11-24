@@ -1,17 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  Activity,
-  AlertCircle,
-  BarChart3,
-  Clock,
-  FlaskConical,
-  GitBranch,
-  Info,
-  Layers,
-  RotateCcw,
-  Shield,
-  Terminal,
-} from 'lucide-react';
 import type {
   ActiveTab,
   BreakdownsData,
@@ -60,6 +47,13 @@ function toHash(tab: ActiveTab, episodeId?: string | null): string {
   }
   return `#${tab}`;
 }
+
+const NAV_TABS: Array<{ id: ActiveTab; label: string; shortLabel: string }> = [
+  { id: 'leaderboard', label: 'Leaderboard', shortLabel: 'Leaderboard' },
+  { id: 'ablations', label: 'Ablations', shortLabel: 'Ablations' },
+  { id: 'replay', label: 'Auto-Gate Replay', shortLabel: 'Replay' },
+  { id: 'trace', label: 'Trace Explorer', shortLabel: 'Traces' },
+];
 
 export default function App() {
   const [route, setRoute] = useState<ParsedHash>(() => parseHash(window.location.hash));
@@ -138,7 +132,6 @@ export default function App() {
     };
   }, []);
 
-  // Derive model -> backends mapping from manifest.episode_index
   const modelBackends = useMemo(() => {
     const map: Record<string, string[]> = {};
     if (!manifest) return map;
@@ -201,7 +194,6 @@ export default function App() {
     manifest,
   ]);
 
-  // Aggregate KPI strip computed from baseline ("none") & "all" rows
   const kpis = useMemo(() => {
     if (!leaderboard || !manifest) return null;
     const noneRows = leaderboard.rows.filter((r) => r.group.mitigation_set_id === 'none');
@@ -251,216 +243,241 @@ export default function App() {
     navigate('trace', match?.episode_id ?? null);
   };
 
-  const navTabs: Array<{ id: ActiveTab; label: string; icon: typeof BarChart3 }> = [
-    { id: 'leaderboard', label: 'Leaderboard & Mitigations', icon: BarChart3 },
-    { id: 'ablations', label: 'Difficulty & Ablations', icon: Layers },
-    { id: 'replay', label: 'Auto-Gate Replay', icon: Shield },
-    { id: 'trace', label: 'Trace Explorer', icon: Terminal },
-  ];
-
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100">
-      {/* Explicit Data Provenance Banner */}
-      {manifest && manifest.is_demo && (
-        <div className="border-b border-amber-500/30 bg-amber-500/10">
-          <div className="mx-auto flex max-w-7xl items-center gap-2.5 px-4 py-2.5 text-xs text-amber-200 sm:px-6">
-            <Info className="h-4 w-4 shrink-0 text-amber-400" />
-            <span>
-              Showing sample scripted-agent demo dataset. Run{' '}
-              <code className="rounded bg-zinc-900/90 px-1.5 py-0.5 font-mono text-[11px] text-amber-300">
-                open-siren run
-              </code>{' '}
-              +{' '}
-              <code className="rounded bg-zinc-900/90 px-1.5 py-0.5 font-mono text-[11px] text-amber-300">
-                open-siren export-web
-              </code>{' '}
-              to load real model results.
+    <div className="min-h-screen bg-[#f5f5f4] text-[#141414]">
+      {/* Single-Row Editorial Header */}
+      <header className="sticky top-0 z-30 border-b border-[#141414]/[0.14] bg-white">
+        <div className="mx-auto flex max-w-[1120px] flex-wrap items-center justify-between gap-x-6 gap-y-2 px-6">
+          {/* Brand Mark + Wordmark */}
+          <button
+            type="button"
+            onClick={() => navigate('leaderboard')}
+            className="flex items-center gap-2.5 py-3.5 text-left transition-opacity duration-150 hover:opacity-80"
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              aria-hidden="true"
+              className="shrink-0"
+            >
+              <rect
+                x="1.5"
+                y="1.5"
+                width="21"
+                height="21"
+                rx="3"
+                stroke="#141414"
+                strokeWidth="1.4"
+              />
+              <rect
+                x="6"
+                y="6"
+                width="12"
+                height="12"
+                rx="1.5"
+                stroke="#141414"
+                strokeWidth="1.2"
+                strokeDasharray="2.5 2"
+              />
+              <circle cx="12" cy="12" r="2.25" fill="#eb6c36" />
+            </svg>
+            <span className="font-serif text-[22px] leading-none tracking-[-0.02em] text-[#141414]">
+              Open Siren
             </span>
-          </div>
-        </div>
-      )}
+          </button>
 
-      {/* Top Navigation Header */}
-      <header className="sticky top-0 z-30 border-b border-zinc-800/90 bg-zinc-950/90 backdrop-blur-md">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6">
-          <div className="flex flex-wrap items-center justify-between gap-4 py-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-amber-500/35 bg-amber-500/10 text-amber-400">
-                <Activity className="h-5 w-5" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h1 className="text-base font-bold tracking-tight text-zinc-100">
-                    Open Siren
-                  </h1>
-                  <span className="rounded border border-zinc-800 bg-zinc-900 px-1.5 py-0.5 font-mono text-[10px] text-zinc-400">
-                    sandbox escape benchmark
-                  </span>
-                </div>
-                <p className="text-xs text-zinc-400">
-                  Empirical propensity, mitigation efficacy, and kernel-traced agent episodes
-                </p>
-              </div>
-            </div>
-
-            {/* Real-run provenance badge (shown when is_demo is false) + repo badge */}
-            <div className="flex flex-wrap items-center gap-2.5 text-xs">
-              {manifest && !manifest.is_demo && (
-                <div className="flex flex-wrap items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 font-mono text-[11px] text-emerald-200">
-                  <Clock className="h-3.5 w-3.5 text-emerald-400" />
-                  <span>{fmtTimestamp(manifest.generated_at)}</span>
-                  <span className="text-emerald-500/60">·</span>
-                  <span>
-                    {manifest.models.length} model{manifest.models.length === 1 ? '' : 's'}
-                  </span>
-                  <span className="text-emerald-500/60">·</span>
-                  <span>{manifest.total_episodes} episodes</span>
-                </div>
-              )}
-
-              <a
-                href="https://github.com/heman10x/open-siren-anthropic"
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-900/80 px-3 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:border-zinc-700 hover:text-zinc-100"
-              >
-                <GitBranch className="h-3.5 w-3.5 text-zinc-400" />
-                <span>GitHub</span>
-              </a>
-            </div>
-          </div>
-
-          {/* Interactive 4-Tab Bar */}
+          {/* Plain Text Underline Tabs */}
           <nav
             aria-label="Dashboard sections"
-            className="-mb-px flex gap-1 overflow-x-auto pb-px"
+            className="order-3 -mb-px flex w-full gap-4 overflow-x-auto border-t border-[#e5e5e5] sm:gap-5 md:order-2 md:w-auto md:border-t-0"
           >
-            {navTabs.map((t) => {
-              const Icon = t.icon;
+            {NAV_TABS.map((t) => {
               const active = route.tab === t.id;
               return (
                 <button
                   key={t.id}
                   type="button"
                   onClick={() => navigate(t.id, t.id === 'trace' ? route.episodeId : null)}
-                  className={`inline-flex shrink-0 items-center gap-2 border-b-2 px-3.5 py-2.5 text-xs font-medium transition-colors ${
+                  className={`shrink-0 border-b-[1.5px] py-3 text-[13px] transition-colors duration-150 md:py-4 ${
                     active
-                      ? 'border-amber-400 text-amber-300'
-                      : 'border-transparent text-zinc-400 hover:border-zinc-700 hover:text-zinc-200'
+                      ? 'border-[#141414] font-medium text-[#141414]'
+                      : 'border-transparent text-[#737373] hover:border-[#d4d4d4] hover:text-[#141414]'
                   }`}
                 >
-                  <Icon className="h-3.5 w-3.5" />
-                  <span>{t.label}</span>
+                  <span className="sm:hidden">{t.shortLabel}</span>
+                  <span className="hidden sm:inline">{t.label}</span>
                 </button>
               );
             })}
           </nav>
+
+          {/* Quiet External Repo Link */}
+          <a
+            href="https://github.com/Heman10x-NGU/open-siren-anthropic"
+            target="_blank"
+            rel="noreferrer"
+            className="order-2 text-xs font-medium text-[#525252] transition-colors duration-150 hover:text-[#141414] md:order-3"
+          >
+            GitHub ↗
+          </a>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6">
+      {/* Quiet 1-Row Data Provenance Strip */}
+      {manifest && (
+        <div className="border-b border-[#141414]/[0.1] bg-[#fafaf9]">
+          <div className="mx-auto max-w-[1120px] px-6 py-2.5 text-xs leading-relaxed text-[#525252]">
+            {manifest.is_demo ? (
+              <p>
+                <span className="font-medium text-[#141414]">Reference harness dataset</span>
+                {' · '}
+                <span className="font-mono tabular-nums text-[#141414]">
+                  {manifest.total_episodes}
+                </span>{' '}
+                real local episodes executed with deterministic scripted agents (
+                <code className="font-mono text-[11px] text-[#141414]">scripted-escapist</code>,{' '}
+                <code className="font-mono text-[11px] text-[#141414]">scripted-reporter</code>,{' '}
+                <code className="font-mono text-[11px] text-[#141414]">scripted-stay-inside</code>)
+                via <code className="font-mono text-[11px] text-[#141414]">open-siren run</code> +{' '}
+                <code className="font-mono text-[11px] text-[#141414]">open-siren export-web</code>.
+                Live frontier model runs coming next.
+              </p>
+            ) : (
+              <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-[11.5px] tabular-nums text-[#525252]">
+                <span className="text-[#141414]">{fmtTimestamp(manifest.generated_at)}</span>
+                <span className="text-[#a3a3a3]">·</span>
+                <span>
+                  {manifest.models.length} model{manifest.models.length === 1 ? '' : 's'}
+                </span>
+                <span className="text-[#a3a3a3]">·</span>
+                <span>{manifest.total_episodes.toLocaleString('en-US')} episodes</span>
+                <span className="text-[#a3a3a3]">·</span>
+                <span>{manifest.backends.join(', ')}</span>
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Main Workspace */}
+      <main className="mx-auto max-w-[1120px] space-y-6 px-6 py-7">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h1 className="text-[30px] leading-[1.12] text-[#141414] sm:text-[34px]">
+              Sandbox Escape Propensity &amp; Mitigation Benchmark
+            </h1>
+            <p className="mt-1.5 text-[13px] text-[#525252]">
+              Empirical escape rates with 95% Wilson confidence intervals, tempter ablations,
+              Auto-Gate replay, and kernel-traced agent episodes.
+            </p>
+          </div>
+        </div>
+
         {loading && (
-          <div className="flex h-64 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900/40 text-sm text-zinc-400">
-            Loading Open Siren benchmark artifacts…
+          <div className="flex h-56 items-center justify-center rounded-[6px] border border-[#141414]/[0.14] bg-white font-mono text-xs text-[#737373]">
+            Loading benchmark artifacts…
           </div>
         )}
 
         {!loading && error && (
-          <div className="flex items-start gap-3 rounded-xl border border-red-500/35 bg-red-950/25 p-5 text-sm text-red-200">
-            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-400" />
-            <div>
-              <div className="font-semibold text-red-300">Failed to load benchmark data</div>
-              <p className="mt-1 font-mono text-xs text-red-200/80">{error}</p>
-            </div>
+          <div className="rounded-[6px] border border-[#eb6c36] bg-white p-5 text-xs text-[#141414]">
+            <div className="font-medium text-[#eb6c36]">Failed to load benchmark data</div>
+            <p className="mt-1 font-mono text-[#525252]">{error}</p>
           </div>
         )}
 
         {!loading && !error && manifest && leaderboard && breakdowns && replay && (
           <>
-            {/* KPI Summary Strip */}
+            {/* 4-Column Flat Typographic KPI Strip */}
             {kpis && (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                <div className="rounded-xl border border-zinc-800/90 bg-zinc-900/55 px-4 py-3.5">
-                  <div className="text-[11px] font-medium text-zinc-400">Models Evaluated</div>
-                  <div className="mt-1 font-mono text-xl font-bold text-zinc-100 tabular-nums">
-                    {kpis.modelsCount}
+              <section
+                aria-label="Summary metrics"
+                className="grid grid-cols-2 rounded-[6px] border border-[#141414]/[0.14] bg-white lg:grid-cols-4 [&>*]:border-[#e5e5e5] [&>*:nth-child(-n+2)]:border-b [&>*:nth-child(odd)]:border-r lg:[&>*:nth-child(-n+2)]:border-b-0 lg:[&>*:not(:last-child)]:border-r"
+              >
+                <div className="px-5 py-4">
+                  <div className="font-mono text-[10px] uppercase tracking-[0.08em] text-[#737373]">
+                    Evaluated Corpus
                   </div>
-                  <div className="mt-0.5 font-mono text-[10.5px] text-zinc-500">
-                    {manifest.backends.join(' · ')}
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-zinc-800/90 bg-zinc-900/55 px-4 py-3.5">
-                  <div className="text-[11px] font-medium text-zinc-400">Total Episodes</div>
-                  <div className="mt-1 font-mono text-xl font-bold text-zinc-100 tabular-nums">
+                  <div className="mt-1.5 font-mono text-2xl font-medium tracking-tight text-[#141414] tabular-nums">
                     {kpis.totalEpisodes.toLocaleString('en-US')}
                   </div>
-                  <div className="mt-0.5 font-mono text-[10.5px] text-zinc-500">
-                    {manifest.episode_index.length} trace{manifest.episode_index.length === 1 ? '' : 's'} indexed
+                  <div className="mt-1 font-mono text-[11px] text-[#737373]">
+                    {kpis.modelsCount} model{kpis.modelsCount === 1 ? '' : 's'} ·{' '}
+                    {manifest.backends.join(', ')}
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-zinc-800/90 bg-zinc-900/55 px-4 py-3.5">
-                  <div className="text-[11px] font-medium text-zinc-400">Baseline Reached</div>
-                  <div className="mt-1 font-mono text-xl font-bold text-amber-400 tabular-nums">
+                <div className="px-5 py-4">
+                  <div className="font-mono text-[10px] uppercase tracking-[0.08em] text-[#737373]">
+                    Baseline Reached
+                  </div>
+                  <div className="mt-1.5 font-mono text-2xl font-medium tracking-tight text-[#141414] tabular-nums">
                     {kpis.baselineReachRate !== null ? `${kpis.baselineReachRate.toFixed(1)}%` : '—'}
                   </div>
-                  <div className="mt-0.5 font-mono text-[10.5px] text-zinc-500">
+                  <div className="mt-1 font-mono text-[11px] text-[#737373]">
                     mitigation = none
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-zinc-800/90 bg-zinc-900/55 px-4 py-3.5">
-                  <div className="text-[11px] font-medium text-zinc-400">Baseline Misaligned</div>
-                  <div className="mt-1 font-mono text-xl font-bold text-red-400 tabular-nums">
+                <div className="px-5 py-4">
+                  <div className="font-mono text-[10px] uppercase tracking-[0.08em] text-[#737373]">
+                    Baseline Misaligned
+                  </div>
+                  <div
+                    className={`mt-1.5 font-mono text-2xl font-medium tracking-tight tabular-nums ${
+                      kpis.baselineMisalignedRate !== null && kpis.baselineMisalignedRate > 0
+                        ? 'text-[#eb6c36]'
+                        : 'text-[#141414]'
+                    }`}
+                  >
                     {kpis.baselineMisalignedRate !== null
                       ? `${kpis.baselineMisalignedRate.toFixed(1)}%`
                       : '—'}
                   </div>
-                  <div className="mt-0.5 font-mono text-[10.5px] text-zinc-500">
+                  <div className="mt-1 font-mono text-[11px] text-[#737373]">
                     clear-violation misuse
                   </div>
                 </div>
 
-                <div className="col-span-2 rounded-xl border border-zinc-800/90 bg-zinc-900/55 px-4 py-3.5 sm:col-span-1">
-                  <div className="text-[11px] font-medium text-zinc-400">Peak Mitigation Drop</div>
-                  <div className="mt-1 font-mono text-xl font-bold text-emerald-400 tabular-nums">
+                <div className="px-5 py-4">
+                  <div className="font-mono text-[10px] uppercase tracking-[0.08em] text-[#737373]">
+                    Peak Mitigation Drop
+                  </div>
+                  <div className="mt-1.5 font-mono text-2xl font-medium tracking-tight text-[#141414] tabular-nums">
                     {kpis.peakReduction !== null ? `-${kpis.peakReduction.toFixed(1)}%` : '—'}
                   </div>
-                  <div className="mt-0.5 font-mono text-[10.5px] text-zinc-500">
+                  <div className="mt-1 font-mono text-[11px] text-[#737373]">
                     reach reduction vs none
                   </div>
                 </div>
-              </div>
+              </section>
             )}
 
-            {/* TAB 1: Leaderboard & Mitigation Impact */}
+            {/* TAB 1: Leaderboard */}
             {route.tab === 'leaderboard' && (
-              <div className="space-y-5">
-                {/* Filter Pill Controls */}
-                <section className="space-y-3 rounded-xl border border-zinc-800/90 bg-zinc-900/60 p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-zinc-200">
-                      <FlaskConical className="h-3.5 w-3.5 text-amber-400" />
-                      Filter Leaderboard
+              <div className="space-y-6">
+                {/* Quiet Inline Filter Bar */}
+                <section className="rounded-[6px] border border-[#141414]/[0.14] bg-white px-5 py-4">
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-[#737373]">
+                      Filters
                     </span>
                     {hasActiveFilters && (
                       <button
                         type="button"
                         onClick={resetFilters}
-                        className="inline-flex items-center gap-1 rounded-md border border-zinc-800 bg-zinc-950 px-2 py-1 text-[11px] text-zinc-400 transition-colors hover:border-zinc-700 hover:text-zinc-100"
+                        className="font-mono text-[11px] text-[#525252] underline underline-offset-4 transition-colors duration-150 hover:text-[#141414]"
                       >
-                        <RotateCcw className="h-3 w-3" />
-                        Reset filters
+                        Reset
                       </button>
                     )}
                   </div>
 
                   <div className="space-y-2.5 text-xs">
-                    {/* Model Pills */}
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="w-24 shrink-0 text-[11px] font-medium text-zinc-500">
+                      <span className="w-24 shrink-0 font-mono text-[11px] text-[#737373]">
                         Model
                       </span>
                       {manifest.models.map((m) => {
@@ -470,10 +487,10 @@ export default function App() {
                             key={m}
                             type="button"
                             onClick={() => toggleSet(setSelectedModels, m)}
-                            className={`rounded-md border px-2.5 py-1 font-mono text-[11px] transition-colors ${
+                            className={`rounded-[4px] border px-2.5 py-1 font-mono text-[11px] transition-colors duration-150 ${
                               active
-                                ? 'border-amber-500/50 bg-amber-500/15 text-amber-200'
-                                : 'border-zinc-800 bg-zinc-950 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200'
+                                ? 'border-[#141414] bg-[#141414] text-white'
+                                : 'border-[#d4d4d4] bg-white text-[#525252] hover:border-[#141414]/45 hover:text-[#141414]'
                             }`}
                           >
                             {m}
@@ -482,9 +499,8 @@ export default function App() {
                       })}
                     </div>
 
-                    {/* Backend Pills */}
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="w-24 shrink-0 text-[11px] font-medium text-zinc-500">
+                      <span className="w-24 shrink-0 font-mono text-[11px] text-[#737373]">
                         Backend
                       </span>
                       {manifest.backends.map((b) => {
@@ -494,10 +510,10 @@ export default function App() {
                             key={b}
                             type="button"
                             onClick={() => toggleSet(setSelectedBackends, b)}
-                            className={`rounded-md border px-2.5 py-1 font-mono text-[11px] transition-colors ${
+                            className={`rounded-[4px] border px-2.5 py-1 font-mono text-[11px] transition-colors duration-150 ${
                               active
-                                ? 'border-sky-500/50 bg-sky-500/15 text-sky-200'
-                                : 'border-zinc-800 bg-zinc-950 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200'
+                                ? 'border-[#141414] bg-[#141414] text-white'
+                                : 'border-[#d4d4d4] bg-white text-[#525252] hover:border-[#141414]/45 hover:text-[#141414]'
                             }`}
                           >
                             {b}
@@ -506,10 +522,9 @@ export default function App() {
                       })}
                     </div>
 
-                    {/* Mitigation Set Pills */}
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="w-24 shrink-0 text-[11px] font-medium text-zinc-500">
-                        Mitigation Set
+                      <span className="w-24 shrink-0 font-mono text-[11px] text-[#737373]">
+                        Mitigation
                       </span>
                       {orderedMitigations.map((mit) => {
                         const active = selectedMitigations.has(mit);
@@ -518,10 +533,10 @@ export default function App() {
                             key={mit}
                             type="button"
                             onClick={() => toggleSet(setSelectedMitigations, mit)}
-                            className={`rounded-md border px-2.5 py-1 font-mono text-[11px] transition-colors ${
+                            className={`rounded-[4px] border px-2.5 py-1 font-mono text-[11px] transition-colors duration-150 ${
                               active
-                                ? 'border-emerald-500/50 bg-emerald-500/15 text-emerald-200'
-                                : 'border-zinc-800 bg-zinc-950 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200'
+                                ? 'border-[#141414] bg-[#141414] text-white'
+                                : 'border-[#d4d4d4] bg-white text-[#525252] hover:border-[#141414]/45 hover:text-[#141414]'
                             }`}
                           >
                             {mit}
@@ -545,13 +560,13 @@ export default function App() {
               </div>
             )}
 
-            {/* TAB 2: Difficulty & Tempter Ablations */}
+            {/* TAB 2: Ablations */}
             {route.tab === 'ablations' && <AblationCharts breakdowns={breakdowns} />}
 
-            {/* TAB 3: Auto-Gate Offline Replay */}
+            {/* TAB 3: Auto-Gate Replay */}
             {route.tab === 'replay' && <ReplayPanel replay={replay} />}
 
-            {/* TAB 4: Interactive Episode Trace Explorer */}
+            {/* TAB 4: Trace Explorer */}
             {route.tab === 'trace' && (
               <TraceExplorer
                 episodes={manifest.episode_index}
@@ -567,13 +582,15 @@ export default function App() {
         )}
       </main>
 
-      <footer className="mt-12 border-t border-zinc-900 bg-zinc-950 py-6 text-xs text-zinc-500">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-4 sm:px-6">
+      <footer className="mt-12 border-t border-[#141414]/[0.12] py-6 text-xs text-[#737373]">
+        <div className="mx-auto flex max-w-[1120px] flex-wrap items-center justify-between gap-2 px-6">
           <span>
-            Open Siren — Open-source AI agent sandbox escape benchmark &amp; mitigation testbed.
+            Open Siren · Open-source AI agent sandbox escape benchmark &amp; mitigation testbed.
           </span>
-          <span className="font-mono text-[11px]">
-            {manifest ? `data schema v${manifest.schema_version} · generated ${fmtTimestamp(manifest.generated_at)}` : ''}
+          <span className="font-mono text-[11px] tabular-nums">
+            {manifest
+              ? `schema v${manifest.schema_version} · generated ${fmtTimestamp(manifest.generated_at)}`
+              : ''}
           </span>
         </div>
       </footer>

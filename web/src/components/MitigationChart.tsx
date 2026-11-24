@@ -25,9 +25,9 @@ const SERIES: Array<{
   label: string;
   color: string;
 }> = [
-  { key: 'reached', label: 'Reached Outside', color: '#f59e0b' },
-  { key: 'used', label: 'Used', color: '#f97316' },
-  { key: 'misaligned', label: 'Misaligned Use', color: '#ef4444' },
+  { key: 'reached', label: 'Reached Outside', color: '#525252' },
+  { key: 'used', label: 'Used Honeypot', color: '#141414' },
+  { key: 'misaligned', label: 'Misaligned Use', color: '#eb6c36' },
 ];
 
 const TICKS = [0, 25, 50, 75, 100];
@@ -35,21 +35,21 @@ const TICKS = [0, 25, 50, 75, 100];
 export function MitigationChart({
   rows,
   groupBy = ['model', 'mitigation_set_id'],
-  title = 'Escape & Misalignment Rates by Model × Mitigation',
+  title = 'Escape & misalignment rates by model and mitigation',
   subtitle = 'Grouped horizontal bars with 95% Wilson score confidence intervals. Hover any bar for exact counts.',
 }: MitigationChartProps) {
   const [hovered, setHovered] = useState<HoveredBar | null>(null);
 
   const layout = useMemo(() => {
-    const svgWidth = 920;
-    const leftMargin = 250;
-    const rightMargin = 115;
-    const topMargin = 42;
-    const bottomMargin = 32;
+    const svgWidth = 960;
+    const leftMargin = 240;
+    const rightMargin = 122;
+    const topMargin = 38;
+    const bottomMargin = 30;
     const plotWidth = svgWidth - leftMargin - rightMargin;
-    const barH = 12;
+    const barH = 11;
     const barGap = 4;
-    const groupPad = 20;
+    const groupPad = 22;
     const groupH = SERIES.length * barH + (SERIES.length - 1) * barGap + groupPad;
     const svgHeight = Math.max(130, topMargin + rows.length * groupH + bottomMargin);
     const plotBottom = topMargin + rows.length * groupH - groupPad / 2;
@@ -84,48 +84,48 @@ export function MitigationChart({
   };
 
   return (
-    <section className="rounded-xl border border-zinc-800/90 bg-zinc-900/60 p-5">
+    <section className="rounded-[6px] border border-[#141414]/[0.14] bg-white p-5">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="text-sm font-semibold tracking-tight text-zinc-100">{title}</h2>
-          <p className="mt-0.5 text-xs text-zinc-400">{subtitle}</p>
+          <h2 className="text-[22px] leading-tight text-[#141414]">{title}</h2>
+          <p className="mt-1 text-xs text-[#737373]">{subtitle}</p>
         </div>
 
-        {/* Live hover readout pill */}
-        <div className="min-h-[38px] shrink-0 rounded-lg border border-zinc-800 bg-zinc-950/90 px-3 py-1.5 text-xs">
+        {/* Live hover readout / legend */}
+        <div className="min-h-[34px] shrink-0 rounded-[4px] border border-[#e5e5e5] bg-[#fafaf9] px-3 py-1.5 text-xs">
           {hovered ? (
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono tabular-nums">
-              <span className="inline-flex items-center gap-1.5 font-sans font-medium text-zinc-200">
+            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 font-mono text-[11px] tabular-nums">
+              <span className="inline-flex items-center gap-1.5 font-sans font-medium text-[#141414]">
                 <span
-                  className="inline-block h-2.5 w-2.5 rounded-xs"
+                  className="inline-block h-2 w-2 rounded-[1px]"
                   style={{ backgroundColor: hovered.color }}
                 />
                 {hovered.rowLabel}
               </span>
-              <span className="text-zinc-400">{hovered.seriesLabel}:</span>
-              <span className="font-semibold text-zinc-100">
+              <span className="text-[#737373]">{hovered.seriesLabel}:</span>
+              <span className="font-semibold text-[#141414]">
                 {fmtPct(hovered.metric)} ({hovered.metric.k}/{hovered.metric.n})
               </span>
-              <span className="text-zinc-400">CI {fmtCI(hovered.metric)}</span>
+              <span className="text-[#737373]">CI {fmtCI(hovered.metric)}</span>
               {hovered.reduction !== null && (
-                <span className="text-emerald-400">
-                  vs none: {fmtReduction(hovered.reduction)}
+                <span className="text-[#525252]">
+                  vs none {fmtReduction(hovered.reduction)}
                 </span>
               )}
             </div>
           ) : (
-            <div className="flex items-center gap-4 text-zinc-400">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-[#525252]">
               {SERIES.map((s) => (
                 <span key={s.key} className="inline-flex items-center gap-1.5">
                   <span
-                    className="inline-block h-2.5 w-2.5 rounded-xs"
+                    className="inline-block h-2 w-2 rounded-[1px]"
                     style={{ backgroundColor: s.color }}
                   />
                   <span>{s.label}</span>
                 </span>
               ))}
-              <span className="inline-flex items-center gap-1.5">
-                <span className="inline-block h-0.5 w-3 bg-zinc-200" />
+              <span className="inline-flex items-center gap-1.5 text-[#737373]">
+                <span className="inline-block h-[1px] w-3 bg-[#141414]" />
                 <span>95% Wilson CI</span>
               </span>
             </div>
@@ -134,7 +134,7 @@ export function MitigationChart({
       </div>
 
       {rows.length === 0 ? (
-        <div className="flex h-32 items-center justify-center rounded-lg border border-dashed border-zinc-800 text-xs text-zinc-500">
+        <div className="flex h-32 items-center justify-center rounded-[4px] border border-dashed border-[#d4d4d4] text-xs text-[#737373]">
           No summary rows match the current filter selection.
         </div>
       ) : (
@@ -146,25 +146,25 @@ export function MitigationChart({
             aria-label={title}
             onMouseLeave={() => setHovered(null)}
           >
-            {/* Vertical grid lines & axis labels */}
+            {/* Vertical grid lines & axis ticks */}
             {TICKS.map((tick) => {
               const x = layout.leftMargin + (tick / 100) * layout.plotWidth;
               return (
                 <g key={tick}>
                   <line
                     x1={x}
-                    y1={layout.topMargin - 12}
+                    y1={layout.topMargin - 10}
                     x2={x}
                     y2={layout.plotBottom}
-                    stroke="#27272a"
+                    stroke={tick === 0 ? '#d4d4d4' : '#e5e5e5'}
                     strokeWidth={1}
-                    strokeDasharray={tick === 0 ? undefined : '3 3'}
+                    strokeDasharray={tick === 0 ? undefined : '2 3'}
                   />
                   <text
                     x={x}
-                    y={layout.topMargin - 20}
+                    y={layout.topMargin - 18}
                     textAnchor="middle"
-                    className="fill-zinc-500 font-mono text-[10px]"
+                    className="fill-[#737373] font-mono text-[10px] tabular-nums"
                   >
                     {tick}%
                   </text>
@@ -172,7 +172,7 @@ export function MitigationChart({
                     x={x}
                     y={layout.plotBottom + 18}
                     textAnchor="middle"
-                    className="fill-zinc-500 font-mono text-[10px]"
+                    className="fill-[#737373] font-mono text-[10px] tabular-nums"
                   >
                     {tick}%
                   </text>
@@ -189,28 +189,34 @@ export function MitigationChart({
 
               return (
                 <g key={`${label.full}-${rowIdx}`}>
-                  {/* Subtle alternating row highlight */}
+                  {/* Subtle hover row tint */}
                   <rect
                     x={0}
-                    y={rowTop - 6}
+                    y={rowTop - 7}
                     width={layout.svgWidth}
-                    height={blockH + 12}
-                    rx={6}
-                    fill={
-                      isRowHovered
-                        ? 'rgba(255,255,255,0.045)'
-                        : rowIdx % 2 === 1
-                          ? 'rgba(255,255,255,0.015)'
-                          : 'transparent'
-                    }
+                    height={blockH + 14}
+                    rx={4}
+                    fill={isRowHovered ? '#fafaf9' : 'transparent'}
                   />
+
+                  {/* Subtle horizontal divider between groups */}
+                  {rowIdx > 0 && (
+                    <line
+                      x1={0}
+                      y1={rowTop - layout.groupPad / 2}
+                      x2={layout.svgWidth}
+                      y2={rowTop - layout.groupPad / 2}
+                      stroke="#f0f0ef"
+                      strokeWidth={1}
+                    />
+                  )}
 
                   {/* Left group label */}
                   <text
                     x={layout.leftMargin - 14}
                     y={rowTop + blockH / 2 - (label.secondary ? 3 : -4)}
                     textAnchor="end"
-                    className="fill-zinc-100 text-[12px] font-medium"
+                    className="fill-[#141414] text-[12px] font-medium"
                   >
                     {label.primary.length > 28 ? `${label.primary.slice(0, 26)}…` : label.primary}
                   </text>
@@ -219,7 +225,7 @@ export function MitigationChart({
                       x={layout.leftMargin - 14}
                       y={rowTop + blockH / 2 + 12}
                       textAnchor="end"
-                      className="fill-zinc-400 font-mono text-[10.5px]"
+                      className="fill-[#737373] font-mono text-[10.5px]"
                     >
                       {label.secondary.length > 30
                         ? `${label.secondary.slice(0, 28)}…`
@@ -237,9 +243,10 @@ export function MitigationChart({
                       return (
                         <text
                           key={series.key}
-                          x={layout.leftMargin + 6}
+                          x={layout.svgWidth - 6}
                           y={midY + 3.5}
-                          className="fill-zinc-600 font-mono text-[10px]"
+                          textAnchor="end"
+                          className="fill-[#a3a3a3] font-mono text-[10px]"
                         >
                           N/A
                         </text>
@@ -252,7 +259,6 @@ export function MitigationChart({
                     const barW = clampedRate * layout.plotWidth;
                     const loX = layout.leftMargin + clampedLo * layout.plotWidth;
                     const hiX = layout.leftMargin + clampedHi * layout.plotWidth;
-                    const textX = Math.max(layout.leftMargin + barW, hiX) + 8;
 
                     const isThisHovered =
                       hovered?.rowLabel === label.full && hovered?.seriesLabel === series.label;
@@ -277,9 +283,9 @@ export function MitigationChart({
                         {/* Invisible wider hover hit area */}
                         <rect
                           x={layout.leftMargin}
-                          y={y - 1}
-                          width={layout.plotWidth + layout.rightMargin - 8}
-                          height={layout.barH + 2}
+                          y={y - 1.5}
+                          width={layout.plotWidth + layout.rightMargin}
+                          height={layout.barH + 3}
                           fill="transparent"
                         />
 
@@ -287,47 +293,80 @@ export function MitigationChart({
                         <rect
                           x={layout.leftMargin}
                           y={y}
-                          width={Math.max(barW, 2)}
+                          width={barW > 0 ? Math.max(barW, 2) : 0}
                           height={layout.barH}
-                          rx={3}
+                          rx={1.5}
                           fill={series.color}
-                          opacity={isThisHovered ? 1 : 0.84}
+                          opacity={isThisHovered ? 1 : 0.9}
                         />
 
-                        {/* 95% Wilson CI whisker */}
+                        {/* 95% Wilson CI whisker halo (keeps 1px ink stem legible over dark bars) */}
                         <line
                           x1={loX}
                           y1={midY}
                           x2={hiX}
                           y2={midY}
-                          stroke="#e4e4e7"
-                          strokeWidth={1.35}
-                          strokeOpacity={0.9}
+                          stroke="#ffffff"
+                          strokeWidth={2.6}
+                          strokeOpacity={0.85}
                         />
                         <line
                           x1={loX}
-                          y1={midY - 3.2}
+                          y1={midY - 3}
                           x2={loX}
-                          y2={midY + 3.2}
-                          stroke="#e4e4e7"
-                          strokeWidth={1.35}
-                          strokeOpacity={0.9}
+                          y2={midY + 3}
+                          stroke="#ffffff"
+                          strokeWidth={2.6}
+                          strokeOpacity={0.85}
                         />
                         <line
                           x1={hiX}
-                          y1={midY - 3.2}
+                          y1={midY - 3}
                           x2={hiX}
-                          y2={midY + 3.2}
-                          stroke="#e4e4e7"
-                          strokeWidth={1.35}
-                          strokeOpacity={0.9}
+                          y2={midY + 3}
+                          stroke="#ffffff"
+                          strokeWidth={2.6}
+                          strokeOpacity={0.85}
                         />
 
-                        {/* Numeric readout */}
+                        {/* Crisp 1px Wilson CI stem & caps */}
+                        <line
+                          x1={loX}
+                          y1={midY}
+                          x2={hiX}
+                          y2={midY}
+                          stroke="#141414"
+                          strokeWidth={1}
+                        />
+                        <line
+                          x1={loX}
+                          y1={midY - 3}
+                          x2={loX}
+                          y2={midY + 3}
+                          stroke="#141414"
+                          strokeWidth={1}
+                        />
+                        <line
+                          x1={hiX}
+                          y1={midY - 3}
+                          x2={hiX}
+                          y2={midY + 3}
+                          stroke="#141414"
+                          strokeWidth={1}
+                        />
+
+                        {/* Right-aligned numeric readout */}
                         <text
-                          x={textX}
+                          x={layout.svgWidth - 6}
                           y={midY + 3.5}
-                          className="fill-zinc-300 font-mono text-[10.5px] tabular-nums"
+                          textAnchor="end"
+                          className={`font-mono text-[10.5px] tabular-nums ${
+                            series.key === 'misaligned' && metric.rate > 0
+                              ? 'fill-[#eb6c36] font-medium'
+                              : isThisHovered
+                                ? 'fill-[#141414] font-medium'
+                                : 'fill-[#525252]'
+                          }`}
                         >
                           {fmtPct(metric)} ({metric.k}/{metric.n})
                         </text>
